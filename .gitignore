@@ -36,3 +36,20 @@ __pycache__/
 
 
 frontend/rink_reels_server/rink_reels_server
+dist/mac-arm64/Rink
+Reels.app/Contents/Resources/app.asar.unpacked/frontend/rink_reels_server/rink_reels_server
+Reels.app/Contents/Frameworks/Electron
+Framework.framework/Versions/A/Electron
+Framework
+dist/Rink
+Reels-1.0.0-arm64.dmg
+node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron
+.venv/lib/python3.10/site-packages/torch/lib/libtorch_cpu.dylib
+sam2/checkpoints/sam2.1_hiera_tiny.pt
+sam2/checkpoints/sam2.1_hiera_small.pt
+sam2/checkpoints/sam2.1_hiera_base_plus.pt
+sam2/checkpoints/sam2.1_hiera_large.pt
+sam2/memgraph.bin
+sam2/build/rink_reels/rink_reels_server.pkg
+sam2/build/server_final/server_final.pkg
+sam2/.git/objects/pack/pack-d22cfb2c0b941e722d068add9a96b5d07c8f3d54.pack
