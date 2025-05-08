@@ -1,0 +1,787 @@
+<!-- Parent html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rink Reels</title>
+
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <!-- Local Font Awesome CSS -->
+  <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="@sweetalert2/themes/dark/dark.css" />
+
+  <!-- Optional OpenCV -->
+  <script src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
+
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark navbar-expand-md fixed-top">
+  <div class="container-fluid p-0">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#topNavbar" aria-controls="topNavbar"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Collapsed content -->
+    <div class="collapse navbar-collapse" id="topNavbar">
+      <ul class="navbar-nav">
+
+        <!-- Video Panel -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="video-panel"
+                  onclick="toggleSidebar('videoPanel')"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Open/Close Video Panel">
+            <i class="fas fa-folder-closed"></i>
+          </button>
+        </li>
+
+        <li class="nav-item"><hr class="dropdown-divider bg-secondary" /></li>
+
+        <!-- Zoom Out -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="mag-minus"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Zoom Out">
+            <i class="fas fa-magnifying-glass-minus"></i>
+          </button>
+        </li>
+
+        <!-- Zoom In -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="mag-plus"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Zoom In">
+            <i class="fas fa-magnifying-glass-plus"></i>
+          </button>
+        </li>
+
+        <!-- Reset View -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="reset-view"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Reset View">
+            <i class="fas fa-home"></i>
+          </button>
+        </li>
+
+        <li class="nav-item"><hr class="dropdown-divider bg-secondary" /></li>
+
+        <!-- Pointer Tool -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="mouse-pointer"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Pointer Tool">
+            <i class="fas fa-mouse-pointer"></i>
+          </button>
+        </li>
+
+        <!-- Pen Tool -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="pen"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Pen Tool (Free Draw)">
+            <i class="fas fa-pen"></i>
+          </button>
+        </li>
+
+        <!-- Vector Square -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="vector-square"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Draw Rectangle">
+            <i class="fas fa-vector-square"></i>
+          </button>
+        </li>
+
+        <!-- Project Diagram -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="project-diagram"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Connection Lines">
+            <i class="fas fa-project-diagram"></i>
+          </button>
+        </li>
+
+        <!-- Draw Polygon -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="draw-polygon"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Draw Polygon">
+            <i class="fas fa-draw-polygon"></i>
+          </button>
+        </li>
+
+        <!-- Comment -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="comment"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Add Comment">
+            <i class="fas fa-comment"></i>
+          </button>
+        </li>
+
+        <!-- Circle Notch -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="circle-notch"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Draw Circle">
+            <i class="fas fa-circle-notch"></i>
+          </button>
+        </li>
+
+        <!-- Set Homography -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="set-homography"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Set Homography">
+            <i class="fas fa-ring"></i>
+          </button>
+        </li>
+
+        <!-- Eraser -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="eraser"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Clear Canvas">
+            <i class="fa fa-eraser"></i>
+          </button>
+        </li>
+
+        <!-- Undo -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="undo"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Undo Last">
+            <i class="fas fa-undo"></i>
+          </button>
+        </li>
+
+        <!-- Capture Frame -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="camera"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Capture Frame">
+            <i class="fas fa-camera"></i>
+          </button>
+        </li>
+
+        <li class="nav-item"><hr class="dropdown-divider bg-secondary" /></li>
+
+        <!-- Player Tracking -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="player-tracking"
+                  onclick="displaySegPanel()"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Track Players">
+            <i class="fas fa-running"></i>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link"
+                  id="returnToVideoBtn"
+                  style="display:none;"
+                  onclick="returnToVideoView()"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="bottom"
+                  title="Return to Video Viewer">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+        </li>
+
+        <!-- Audio Detection -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="audio-detect"
+                  onclick="detectAudioEvents()"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Detect Audio Events">
+            <i class="fas fa-ear-listen"></i>
+          </button>
+        </li>
+
+        <!-- Tag Panel -->
+        <li class="nav-item">
+          <button class="nav-link"
+                  data-btn-id="tag"
+                  onclick="toggleSidebar('tagPanel')"
+                  data-bs-toggle="tooltip"
+                  data-bs-trigger="hover"
+                  data-bs-placement="bottom"
+                  title="Open/Close Tag Panel">
+            <i class="fas fa-tags"></i>
+          </button>
+        </li>
+
+        <!-- Export Spinner (not a button, so no tooltip) -->
+        <li class="nav-item d-flex align-items-center ms-2">
+            <i id="exportSpinner"
+               class="fas fa-spinner fa-spin"
+               style="display: none;
+                      position: fixed;
+                      top: 1rem;
+                      right: 2rem;
+                      z-index: 9999;
+                      font-size: 1.75rem;
+                      color: white;">
+            </i>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Bottom Panel (new addition) -->
+<div id="segmentationPanel" class="bottom-panel collapsed">
+  <div id="resizeHandle"></div> <!-- New resize handle -->
+  <div class="bottom-panel-header" onclick="toggleBottomPanel()" data-bs-toggle="tooltip" data-bs-placement="top" title="Click to Expand/Collapse">
+    <div class="d-flex justify-content-between align-items-center px-3 py-2">
+      <span><i class="fas fa-running"></i> Player Tracking</span>
+      <div>
+        <button class="btn btn-sm btn-outline-light me-2" onclick="reloadSegmentationContent(event)">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+        <button id="maximizeButton" class="btn btn-sm btn-outline-light" onclick="toggleMaximizePanel(event)">
+          <i id="maximizeIcon" class="fas fa-expand-alt"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-panel-content" style="overflow: hidden;">
+    <div id="segmentationContent" class="p-3" style="height: 100%;">
+      <iframe
+        id="segmentationFrame"
+        src="index_2.html"
+        style="border: none; width: 100%; height: 100%; display: block;">
+      </iframe>
+    </div>
+  </div>
+</div>
+  <!-- Left Sidebar -->
+<div id="videoPanel" class="sidebar left collapsed">
+  <h5 class="text-center">Video Items</h5>
+  <button id="toggleVideoFormBtn" class="btn btn-outline-light w-100 mb-2" onclick="toggleVideoForm()">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
+  <div id="addVideoForm" style="display: none;">
+
+    <!-- Hidden file input (so the browser never shows "No file chosen") -->
+    <input
+      type="file"
+      id="videoInput"
+      class="visually-hidden"
+      accept="video/*"
+    />
+
+    <!-- A custom button that triggers Electron's native dialog -->
+    <button
+      id="chooseFileBtn"
+      class="btn btn-secondary w-100"
+      onclick="onFileInputClick(event)"
+    >
+      Choose File
+    </button>
+
+    <!-- Our custom label that will show the selected path -->
+    <div
+      id="selectedFileLabel"
+      style="color: #ccc; font-size: 0.85rem; margin-top: 4px;"
+    >
+      No file chosen
+    </div>
+
+    <input
+      type="text"
+      id="videoName"
+      class="form-control mt-2"
+      placeholder="Enter video name"
+    />
+
+    <button
+      class="btn btn-primary w-100 mt-2"
+      onclick="addVideo()"
+    >
+      Add Video
+    </button>
+  </div>
+
+  <div id="videoList" class="mt-3"></div>
+</div>
+
+  <!-- Right Sidebar -->
+  <div id="tagPanel" class="sidebar right collapsed" style="right: 0;">
+    <h5 class="text-center">Video Tags</h5>
+    <select id="presetTags" class="form-control mb-2">
+      <option value="">Select a preset tag</option>
+      <option value="Goal">Goal</option>
+      <option value="Shot">Shot</option>
+      <option value="Block">Block</option>
+      <option value="Face-Off">Face-Off</option>
+    </select>
+    <div class="input-group mb-2">
+      <input type="text" id="tagInput" class="form-control" placeholder="Enter tag" />
+      <button class="btn btn-primary" onclick="addTag()">Add Tag</button>
+    </div>
+    <button class="btn btn-outline-light w-100 mb-3" onclick="detectAudioEvents()">
+      <i class="fa-solid fa-waveform-lines"></i> Detect Audio
+    </button>
+    <div id="tagList" class="mt-3 flex-grow-1"></div>
+    <button class="btn btn-outline-light w-100 mt-3" onclick="exportTags()">
+      <i class="fa-solid fa-file-export"></i> Export
+    </button>
+  </div>
+
+  <!-- Main Content -->
+  <div id="mainContent">
+    <div id="videoWrapper">
+      <h5 id="videoTitle"></h5>
+      <!-- Responsive VIDEO CONTAINER -->
+      <div class="video-container">
+        <video id="videoPlayer" preload="auto"></video>
+        <!-- Canvas for drawings (freehand, shapes, homography overlays, etc.) -->
+        <canvas id="drawCanvas" willReadFrequently="true"></canvas>
+        <!-- Bottom controls: player bar & timeline -->
+        <div class="bottom-controls">
+          <div class="player-bar">
+            <div class="time" id="playerBarTime">00:00:00</div>
+            <div class="progress-container" id="playerBarProgressContainer">
+              <div class="progress" id="playerBarProgress">
+                <div class="progress-fill" id="playerBarProgressFill"></div>
+                <div class="progress-dot" id="playerBarProgressDot"></div>
+              </div>
+            </div>
+            <div class="controls" id="playerBarControls">
+              <i class="fas fa-play" id="playerPlayPause"></i>
+              <i class="fas fa-step-backward" id="playerStepBack"></i>
+              <i class="fas fa-backward" id="playerBackward"></i>
+              <i class="fas fa-volume-mute" id="playerMute"></i>
+              <span id="playerSpeed">x1</span>
+              <i class="fas fa-step-forward" id="playerStepForward"></i>
+            </div>
+            <div class="actions">
+              <div class="label" id="action-upload"></div>
+            </div>
+          </div>
+          <div class="timeline-container" id="timelineContainer">
+            <div class="selection" id="selection"></div>
+            <div class="handle" id="handleStart"></div>
+            <div class="handle" id="handleEnd"></div>
+            <div id="timelineTags"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for upload -->
+  <input type="file" id="videoUploaderFirst" accept="video/*,image/*" style="display: none;" />
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3"></div>
+
+  <!-- Homography Context Menu (for editing halo overlay colors) -->
+  <div id="homographyContextMenu">
+    <div>
+      <label for="homographyDropdownRingColor">Ring Color:</label>
+      <input type="color" id="homographyDropdownRingColor" value="#ffffff">
+    </div>
+    <div>
+      <label for="homographyDropdownSpotlightColor">Spotlight Color:</label>
+      <input type="color" id="homographyDropdownSpotlightColor" value="#ffffff">
+    </div>
+    <button id="homographyDropdownSaveBtn">Save</button>
+  </div>
+  <!-- SAM2 Segmentation Settings -->
+<!-- SAM2 Segmentation Settings -->
+<div id="segmentationPanelold" class="sidebar collapsed" style="right:0;">
+  <h5 class="text-center">Segmentation Settings</h5>
+  <div class="p-3">
+    <label>Checkpoint:<br>
+      <input id="seg_checkpoint" class="form-control" type="text"
+             value="/path/to/sam2.pt" />
+    </label>
+    <label class="mt-2">Config:<br>
+      <input id="seg_config" class="form-control" type="text"
+             value="configs/sam2.yaml" />
+    </label>
+    <label class="mt-2">FPS:<br>
+      <input id="seg_fps" class="form-control" type="number" value="30" />
+    </label>
+    <button class="btn btn-outline-light w-100 mb-2" onclick="enableSAM2ClickMode()">
+      Click Mode
+    </button>
+    <button class="btn btn-outline-light w-100 mb-2" onclick="enableSAM2BoxMode()">
+      Box Mode
+    </button>
+    <button class="btn btn-primary w-100" onclick="startSAM2Propagation()">
+      Start Tracking
+    </button>
+    <button class="btn btn-secondary w-100 mt-3"
+            onclick="toggleSidebar('segmentationPanel')">Close</button>
+  </div>
+</div>
+  <!-- Bootstrap Bundle (with Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Custom JS -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="script.js"></script>
+
+<script>
+  // Initialize all tooltips once the DOM is loaded
+  document.addEventListener('DOMContentLoaded', function () {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+      new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  });
+
+  async function trackPlayers() {
+    const cbs = document.querySelectorAll('.tag-select:checked');
+    if (cbs.length !== 1) {
+      Swal.fire({
+        background: '#2f2f2f',
+        color: '#ffffff',
+        icon: 'error',
+        title: 'Select Exactly One Tag!',
+        text: 'Please pick exactly one tagged segment.'
+      });
+      return;
+    }
+    if (!currentVideoPath) {
+      showToast("No video selected.");
+      return;
+    }
+
+    // find the start/end from that tag
+    const tagElem = cbs[0].closest('.tag-item');
+    const startSec = parseFloat(tagElem.getAttribute('data-start-sec'));
+    const endSec   = parseFloat(tagElem.getAttribute('data-end-sec'));
+
+    // prompt for folder
+    let folderPath = await window.electronAPI?.openDirectoryDialog?.();
+    if (!folderPath) {
+      showToast("Canceled directory selection.");
+      return;
+    }
+
+    // prompt for filename
+    const { value: outName } = await Swal.fire({
+      background: '#2f2f2f', color: '#ffffff',
+      title: 'Output Filename',
+      input: 'text',
+      inputValue: `segmented_${Date.now()}.mp4`,
+      showCancelButton: true
+    });
+    if (!outName) return;
+
+    const finalName = outName.toLowerCase().endsWith('.mp4') ? outName : (outName + '.mp4');
+    const outputPath = folderPath.replace(/[\\/]+$/, '') + '/' + finalName;
+
+    // show spinner now
+    showSpinner(true);
+    showToast("Starting subclip extraction...");
+
+    // call prepareSegment
+    sendSocketMessage('prepareSegment', {
+      videoPath: currentVideoPath,
+      startSec,
+      endSec,
+      outputPath,
+      fps: 30
+    });
+
+    // load the iframe
+    document.getElementById("videoWrapper").innerHTML = `
+      <iframe id="segIframe"
+              src="index_2.html"
+              width="100%"
+              height="800"
+              style="border:none;"></iframe>
+    `;
+
+    // show "Return to Video" button
+    document.getElementById("returnToVideoBtn").style.display = 'inline-block';
+  }
+
+  /**
+   * Called when server sends { type:"segmentationReady", firstFrame, framesDir, outputPath }
+   */
+  function onSegmentationReady(data) {
+    // Hide spinner
+    showSpinner(false);
+    showToast("Subclip ready; loaded SAM2.");
+
+    // postMessage to the iframe
+    const iframe = document.getElementById("segIframe");
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({
+        action: "LOAD_FRAME",
+        firstFrame: data.firstFrame,  // base64
+        framesDir: data.framesDir,
+        finalOutput: data.outputPath
+      }, "*");
+    }
+  }
+
+  /**
+   * returnToVideoView() - user clicks "Return to Video Viewer" button in top toolbar
+   */
+  function returnToVideoView() {
+    document.getElementById("videoWrapper").innerHTML = `
+      <h5 id="videoTitle"></h5>
+      <div class="video-container">
+        <video id="videoPlayer" preload="auto"></video>
+        <canvas id="drawCanvas"></canvas>
+        <div class="bottom-controls">
+          <!-- etc. the timeline bar, etc. -->
+        </div>
+      </div>
+    `;
+    document.getElementById("returnToVideoBtn").style.display = 'none';
+    showToast("Back to Video Viewer");
+  }
+
+  /*
+   * Listen for messages from the child (iframe).
+   * The child might request the parent to open a file/directory dialog.
+   * We do it here in the parent (because the iframe doesn't have electron permissions),
+   * then we post the result back to the child.
+   */
+window.addEventListener("message", async (event) => {
+  const data = event.data || {};
+
+  // TOP-LEVEL DEBUG:
+  console.log("%c[PARENT] Received message:", "color: cyan;", data,
+              "\n   event.origin:", event.origin,
+              "\n   event.source:", event.source);
+
+  // 1) Gather ALL iframes so we can match whichever posted the message
+  const allIframes = document.querySelectorAll("iframe");
+  console.log("[PARENT DEBUG] Found", allIframes.length, "iframes in the document.");
+
+  // 2) Attempt to find the iframe whose .contentWindow === event.source
+  let matchedIframe = null;
+  for (const ifr of allIframes) {
+    console.log("[PARENT DEBUG] Checking iframe:", ifr,
+                "contentWindow:", ifr.contentWindow);
+    if (ifr.contentWindow === event.source) {
+      matchedIframe = ifr;
+      break;
+    }
+  }
+
+  if (!matchedIframe) {
+    // If we found no matching iframe, we ignore the message
+    console.log("%c[PARENT DEBUG] No matching iframe => ignoring message", "color: orange;");
+    return;
+  }
+  console.log("%c[PARENT] Matched iframe:", "color: cyan;", matchedIframe);
+
+  // 3) Handle "type" messages first (spinner, toast, etc.)
+  if (data.type === "SHOW_SPINNER") {
+    console.log("[PARENT] Received SHOW_SPINNER => showSpinner(true)");
+    showSpinner(true);
+  }
+  else if (data.type === "HIDE_SPINNER") {
+    console.log("[PARENT] Received HIDE_SPINNER => showSpinner(false)");
+    showSpinner(false);
+  }
+  else if (data.type === "TOAST") {
+    console.log("[PARENT] Received TOAST => showToast(...)", data.message);
+    showToast(data.message || "");
+  }
+  else if (data.type === "RETURN_EDITOR") {
+    console.log("[PARENT] Received RETURN_EDITOR => returnToVideoView()");
+    returnToVideoView();
+  }
+
+  // 4) Handle "action" messages for file/directory pickers
+  else if (data.action === "OPEN_FILE_DIALOG") {
+    console.log("%c[PARENT] Child requests OPEN_FILE_DIALOG => calling electronAPI.openFileDialog...",
+                "color: yellow;");
+    let filePath = null;
+    try {
+      filePath = await window.electronAPI.openFileDialog({
+        filters: [{ name: "Videos", extensions: ["mp4", "mov", "mkv", "avi"] }]
+      });
+      console.log("[PARENT] electronAPI.openFileDialog => filePath:", filePath);
+    } catch (err) {
+      console.error("[PARENT] File dialog error:", err);
+    }
+
+    // Post result back to the child
+    event.source.postMessage({ action: "OPEN_FILE_DIALOG_RESULT", filePath }, "*");
+    console.log("[PARENT] Sent OPEN_FILE_DIALOG_RESULT back to child =>", filePath);
+
+  } else if (data.action === "OPEN_DIRECTORY_DIALOG") {
+    console.log("%c[PARENT] Child requests OPEN_DIRECTORY_DIALOG => calling electronAPI.openDirectoryDialog...",
+                "color: yellow;");
+    let dirPath = null;
+    try {
+      dirPath = await window.electronAPI.openDirectoryDialog();
+      console.log("[PARENT] electronAPI.openDirectoryDialog => dirPath:", dirPath);
+    } catch (err) {
+      console.error("[PARENT] Directory dialog error:", err);
+    }
+
+    // Post result back to the child
+    event.source.postMessage({ action: "OPEN_DIRECTORY_DIALOG_RESULT", dirPath }, "*");
+    console.log("[PARENT] Sent OPEN_DIRECTORY_DIALOG_RESULT back to child =>", dirPath);
+
+  } else {
+    console.log("[PARENT] Unhandled message action:", data.action, "=> ignoring");
+  }
+});
+
+  let panelIsMaximized = false;
+  let lastPanelHeight = 400;
+
+  function toggleMaximizePanel(event) {
+    event.stopPropagation();
+    const panel = document.getElementById('segmentationPanel');
+    const icon = document.getElementById('maximizeIcon');
+    adjustIframeHeight(); // Always adjust after height changes
+
+    if (!panelIsMaximized) {
+      lastPanelHeight = panel.offsetHeight;
+      panel.style.height = '90vh';
+      icon.classList.remove('fa-expand-alt');
+      icon.classList.add('fa-compress-alt');
+      panelIsMaximized = true;
+    } else {
+      panel.style.height = lastPanelHeight + 'px';
+      icon.classList.remove('fa-compress-alt');
+      icon.classList.add('fa-expand-alt');
+      panelIsMaximized = false;
+    }
+
+    adjustIframeHeight();
+  }
+
+  // ---- Resizing and Live iframe Adjustment ----
+  document.addEventListener('DOMContentLoaded', function () {
+    const resizeHandle = document.getElementById('resizeHandle');
+    const panel = document.getElementById('segmentationPanel');
+
+    let isResizing = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    resizeHandle.addEventListener('mousedown', function (e) {
+      if (panel.classList.contains('collapsed')) return; // Don't allow resize when collapsed
+      isResizing = true;
+      startY = e.clientY;
+      startHeight = panel.offsetHeight;
+      document.body.style.cursor = 'ns-resize';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isResizing) return;
+      const dy = startY - e.clientY;
+      let newHeight = startHeight + dy;
+      newHeight = Math.min(Math.max(newHeight, 100), window.innerHeight * 0.9);
+      panel.style.height = newHeight + 'px';
+
+      adjustIframeHeight(); // Live adjust while dragging
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = '';
+      }
+    });
+
+    // Auto-hide the resize handle when panel is collapsed
+    const observer = new MutationObserver(() => {
+      const resizeHandle = document.getElementById('resizeHandle');
+      if (panel.classList.contains('collapsed')) {
+        resizeHandle.style.opacity = '0';
+        resizeHandle.style.pointerEvents = 'none';
+      } else {
+        resizeHandle.style.opacity = '1';
+        resizeHandle.style.pointerEvents = 'auto';
+      }
+      adjustIframeHeight();
+    });
+    observer.observe(panel, { attributes: true, attributeFilter: ['class', 'style'] });
+
+    window.addEventListener('resize', adjustIframeHeight);
+  });
+
+  // 📏 Centralized function to adjust iframe + content height
+  function adjustIframeHeight() {
+    const panel = document.getElementById('segmentationPanel');
+    const content = document.querySelector('.bottom-panel-content');
+    const header = document.querySelector('.bottom-panel-header');
+    const iframe = document.getElementById('segmentationFrame');
+
+    if (panel && content && iframe) {
+      const headerHeight = header ? header.offsetHeight : 0; // fallback if header missing
+      const newContentHeight = panel.offsetHeight - headerHeight;
+      content.style.height = `${newContentHeight}px`;
+      iframe.style.height = '100%'; // iframe fills .bottom-panel-content
+    }
+  }
+
+</script>
+
+</body>
+</html>

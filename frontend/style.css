@@ -1,0 +1,536 @@
+/* ========================= */
+/* Video Editor & Drawing UI */
+/* ========================= */
+
+/* BASE STYLES */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #121212;
+  color: #fff;
+  font-family: Arial, sans-serif;
+}
+body, .navbar, .dropdown-menu {
+  background-color: #1c1c1c !important;
+}
+.navbar, .navbar-nav {
+  margin: 0;
+  padding: 0;
+}
+.sidebar { z-index: 9999; }
+
+/* NAVBAR */
+.navbar { height: 56px; min-height: 56px; }
+.navbar-dark .navbar-toggler-icon { filter: invert(100%); }
+.navbar-collapse.show { background-color: #1c1c1c; }
+.navbar-nav { margin-left: auto; margin-right: auto; }
+.nav-link, .navbar-toggler {
+  color: #bbb !important;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  border: none;
+  background: none;
+  transition: background 0.2s, color 0.2s;
+}
+.nav-link:hover,
+.nav-link.active,
+.navbar-toggler:hover {
+  background-color: #2d2d2d !important;
+  color: #70f3af !important;
+}
+.dropdown-item i { margin-right: 8px; }
+
+/* SIDEBARS */
+/* Sidebar in "expanded" state */
+.sidebar {
+  position: fixed;
+  top: 56px;
+  left: 0;
+
+  /* Remove bottom: 0 to allow auto height */
+  /* height: auto so it grows to fit content */
+  height: auto;
+  max-height: calc(100vh - 56px);  /* optional max-height so it never extends past the viewport */
+
+  width: 250px;
+  background: #222;
+  color: #fff;
+  padding: 10px;
+
+  /* Round corners, border, shadow */
+  border-radius: 12px;
+  border: 1px solid #444;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+
+  /* Start fully visible (no horizontal transform) */
+  transform: translateX(0);
+
+  /* Only transition transform (avoids content squish) */
+  transition: transform 0.3s ease-in-out;
+  z-index: 9999;
+  overflow-y: auto; /* If needed for scroll */
+}
+
+/* Collapsed: move it left beyond 100% of its width. */
+.sidebar.collapsed {
+  transform: translateX(-110%); /* “-100%” or a bit more to hide the rounded edge */
+  box-shadow: none;            /* remove shadow if you see a grey strip in collapsed state */
+  border: none;                /* remove border if it’s causing the grey bar */
+  padding: 10px 0;            /* optional: reduce padding further if you like */
+}
+.sidebar.left {
+  left: 0;
+  transform: translateX(0); /* “expanded” by default if no `collapsed` class is present */
+}
+
+/* Collapsed state: slide off-screen to the left */
+.sidebar.left.collapsed {
+  transform: translateX(-110%);
+  box-shadow: none; /* remove shadow to avoid a visible bar at the edge */
+  border: none;     /* optional, if you see a faint border in collapsed state */
+}
+
+/* For a right-anchored sidebar */
+.sidebar.right {
+  right: 0;             /* anchor at right edge */
+  left: auto;           /* ensure it's not pinned to the left */
+}
+
+/* Collapsed state: slide off-screen to the right */
+.sidebar.right.collapsed {
+  transform: translateX(110%);
+  box-shadow: none;
+  border: none;
+}
+
+
+
+.bottom-panel {
+  display: none; /* hidden initially */
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 9999;
+  background-color: #2f2f2f;
+  color: #fff;
+  transition: all 0.3s ease;
+}
+
+/* Optional header styling inside the panel */
+.bottom-panel-header {
+  background-color: #444;
+  padding: 0.5rem;
+}
+
+/* The content area for the iframe */
+.bottom-panel-content {
+  height: calc(100vh - 3rem); /* Just an example so it fills the rest */
+  overflow: hidden;
+}
+
+/* A class that forces full-screen mode from top to bottom */
+.bottom-panel.full-screen {
+  display: block;  /* show it */
+  top: 0;          /* push it all the way up so it covers entire page */
+  bottom: 0;
+  height: 100vh;
+  width: 100%;
+}
+/* Optionally, if you need margins on the sidebars so corners show up nicely: */
+#videoPanel {
+  margin-left: 10px;
+}
+
+#tagPanel {
+  margin-right: 10px;
+}
+
+.video-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 5px;
+  background: #333;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.video-item:hover { background: #444; }
+.video-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-buttons { display: flex; gap: 5px; }
+.video-buttons button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+.favorite.active { color: red; }
+
+.tag-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  background: #333;
+  padding: 8px;
+  border-radius: 5px;
+  margin-top: 5px;
+  border-left: 8px solid transparent;
+}
+.tag-item:hover { background: #444; }
+.tag-display { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-buttons { display: flex; gap: 5px; }
+.tag-buttons button {
+  background: none;
+  border: 1px solid #444;
+  color: white;
+}
+.tag-item.selected { outline: 2px solid #ff9800; }
+
+/* MAIN CONTENT LAYOUT */
+#mainContent {
+  position: relative;
+  transition: width 0.3s, margin 0.3s;
+  min-height: calc(100vh - 56px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 56px;
+}
+#videoWrapper {
+  width: 100%;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#videoTitle { margin-bottom: 10px; text-align: center; }
+
+/* TOAST */
+#toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999; /* on top of sidebars, modals, etc. */
+}
+
+.toast.show {
+  opacity: 1; /* ensure it’s visible */
+  transition: opacity 0.3s ease;
+}
+
+
+/* RESPONSIVE VIDEO CONTAINER */
+.video-container {
+  position: relative;
+  background-color: #000;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+.video-container video,
+.video-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* PLAYER BAR & TIMELINE */
+.bottom-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background-color: rgba(28, 28, 28, 0.8);
+  padding: 5px 0;
+}
+.player-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ccc;
+  padding: 0 10px;
+  width: 100%;
+}
+.player-bar .time { font-size: 14px; min-width: 60px; }
+.progress-container {
+  flex: 1;
+  margin: 0 10px;
+  position: relative;
+}
+.progress {
+  width: 100%;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+.progress-fill {
+  background: #00ff9f;
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+}
+.progress-dot {
+  position: absolute;
+  top: -6px;
+  width: 14px;
+  height: 14px;
+  background: #00ff9f;
+  border-radius: 50%;
+  display: none;
+}
+.controls, .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.controls i, .actions i {
+  cursor: pointer;
+  font-size: 16px;
+  color: #ccc;
+  transition: color 0.2s;
+}
+.controls i:hover, .actions i:hover { color: #00ff9f; }
+.actions .label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.actions .label:hover { color: #00ff9f; }
+
+/* TIMELINE */
+.timeline-container {
+  position: relative;
+  margin: 0 10px 10px 10px;
+  padding: 5px;
+  background-color: #333;
+  border-radius: 5px;
+  user-select: none;
+  overflow: hidden;
+  height: 50px;
+  min-width: 200px;
+}
+.selection {
+  position: absolute;
+  top: 0;
+  height: 50px;
+  background-color: rgba(255, 152, 0, 0.3);
+  pointer-events: none;
+  z-index: 1;
+}
+.handle {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 50px;
+  background-color: #ff9800;
+  cursor: pointer;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+.timeline-tag {
+  position: absolute;
+  top: 0;
+  height: 50px;
+  border-radius: 3px;
+  opacity: 0.7;
+  cursor: pointer;
+  border: 1px solid #555;
+  z-index: 999;
+}
+.timeline-tag.selected {
+  opacity: 1;
+  outline: 2px solid #fff;
+}
+
+/* ========================== */
+/* Homography Context Menu UI */
+/* ========================== */
+#homographyContextMenu {
+  position: absolute;
+  display: none;
+  background: #222;
+  color: #eee;
+  border: 1px solid #555;
+  padding: 10px;
+  border-radius: 4px;
+  z-index: 10001;
+  font-size: 14px;
+}
+#homographyContextMenu label {
+  margin-right: 5px;
+}
+#homographyContextMenu div {
+  margin-bottom: 5px;
+}
+.swal2-container {
+  z-index: 9999 !important;
+}
+
+    .tooltip.fade {
+      transition: opacity 0.5s ease-in-out; /* Slower dissolve */
+    }
+    .tooltip.fade.show {
+      opacity: 1;
+    }
+    /* Bottom Panel Styles */
+.bottom-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #1e1e1e;
+  color: #ccc;
+  z-index: 1000;
+  border-top: 1px solid #444;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease-in-out;
+}
+
+.bottom-panel.collapsed {
+  transform: translateY(calc(100% - 40px));
+}
+
+.bottom-panel.expanded {
+  transform: translateY(0);
+}
+
+.bottom-panel-header {
+  height: 40px;
+  background-color: #292929;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.bottom-panel-header:hover {
+  background-color: #333;
+}
+
+.bottom-panel-content {
+  overflow-y: auto;
+  height: auto;
+  background-color: #1e1e1e;
+}
+
+.bottom-panel-content::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 9999; /* VERY HIGH to stay above everything */
+  resize: both; /* <-- allows dragging to resize! */
+  background-color: #444;
+  cursor: ns-resize;
+}
+
+#segmentationContent {
+  height: 100%;
+}
+
+#segmentationContent canvas {
+  max-width: 100%;
+  height: auto;
+  background-color: #000;
+  margin-top: 10px;
+  display: block;
+}
+#segmentationPanel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #1e1e1e;
+  color: #ccc;
+  z-index: 10001; /* Higher than sidebars */
+  border-top: 1px solid #444;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+  transition: height 0.3s ease, transform 0.3s ease;
+  height: 400px;
+  min-height: 100px;
+  max-height: 90vh;
+  overflow: hidden;
+  resize: none; /* we manually handle resizing */
+}
+
+.bottom-panel.collapsed {
+  transform: translateY(calc(100% - 40px));
+}
+
+.bottom-panel.expanded {
+  transform: translateY(0);
+}
+
+.bottom-panel-header {
+  height: 40px;
+  background-color: #292929;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+#resizeHandle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background: #444;
+  cursor: ns-resize;
+  z-index: 10002;
+}
+
+#mainContent {
+  padding-bottom: 40px;
+}
+.bottom-panel-content {
+  /* Let it expand or be a fixed height, etc. */
+  height: calc(100vh - 200px); /* for example */
+  overflow: hidden;            /* prevent scrollbars if needed */
+}
+
+#segmentationIframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.tooltip {
+  z-index: 9999 !important;
+}
+.tooltip.show {
+  z-index: 9999 !important;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;               /* top/right/bottom/left = 0 */
+  z-index: 1100;          /* above your navbar (usually ~1000) */
+  background: rgba(0,0,0,0.5);
+  display: none;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 56px;      /* push below navbar */
+  overflow-y: auto;
+}
+
+.modal-content {
+  /* ensure your content is above the overlay dim */
+  z-index: 1101;
+  position: relative;     /* so this z-index takes effect */
+  margin-bottom: 56px;
+}

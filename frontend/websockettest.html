@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WebSocket Debug Client</title>
+</head>
+<body>
+  <h1>WebSocket Debug Client</h1>
+  <p>Open your browser console to see handshake and message logs.</p>
+
+  <script>
+    // Create a new WebSocket connection
+    const ws = new WebSocket("ws://localhost:8765");
+
+    // Fired when connection is established
+    ws.addEventListener("open", () => {
+      console.log('[WS] connected');
+      // Send a handshake/ping to prove the server is responsive
+      const handshakeMsg = JSON.stringify({ action: 'ping' });
+      console.log('[WS] sending handshake:', handshakeMsg);
+      ws.send(handshakeMsg);
+    });
+
+    // Fired when a message is received from the server
+    ws.addEventListener("message", event => {
+      console.log('[WS] message received:', event.data);
+    });
+
+    // Fired on connection errors
+    ws.addEventListener("error", error => {
+      console.error('[WS] error:', error);
+    });
+
+    // Fired when the connection is closed
+    ws.addEventListener("close", event => {
+      console.warn('[WS] closed:', event.code, event.reason);
+    });
+  </script>
+</body>
+</html>

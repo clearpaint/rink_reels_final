@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SAM2: Segmentation with Preview</title>
+
+  <!-- Local Font Awesome CSS -->
+  <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+  <!-- SweetAlert2 for nice prompts -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <style>
+    /* Basic reset & full-height layout */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background-color: #1e1e1e;
+      color: #ccc;
+      font-family: sans-serif;
+    }
+
+    /* Outer wrapper => a "card" with rounded corners for header/footer */
+    .outer-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      margin: 1rem;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      background-color: #2a2a2a;
+    }
+
+    /* Header with title */
+    header {
+      background-color: #2f2f2f;
+      padding: 1rem;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.2em;
+      color: #fff;
+    }
+
+    /* Footer at bottom */
+    footer {
+      background-color: #2f2f2f;
+      padding: 0.75rem 1rem;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* The main area: left toolbox + center canvas + right advanced panel */
+    .main-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden; /* keeps layout tidy if something overflows */
+    }
+
+    /* Toolbox on the left */
+    .toolbox {
+      width: 60px;
+      background-color: #3a3a3a;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.5rem 0;
+      gap: 0.5rem;
+      margin-left: 1rem;
+      margin-right: 1rem;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+      overflow: auto;
+    }
+    .toolbox button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+      color: #aaa;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    .toolbox button:hover {
+      background-color: #444;
+      color: #fff;
+    }
+    .toolbox hr {
+      width: 80%;
+      border: none;
+      border-top: 1px solid #555;
+    }
+
+    /* The center area: just the canvas (centered), plus messages/spinner */
+    .center-canvas-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;     /* horizontal center */
+      justify-content: center; /* vertical center if needed */
+      gap: 0.75rem;
+      margin: 1rem;
+      overflow: auto;
+    }
+
+    /* Canvas */
+    #canvasFrame {
+      border: 1px solid #ccc;
+      max-width: 100%;
+      border-radius: 4px;
+      background-color: #222;
+    }
+
+    /* Extraction spinner (if desired) */
+    .extract-spinner {
+      color: #4caf50;
+      font-size: 1.5rem;
+      margin-right: 0.5rem;
+    }
+
+    /* Messages area */
+    #messages {
+      color: #aaf;
+      font-size: 1em;
+      min-height: 1.2em;
+      text-align: center;
+    }
+
+    /* Right advanced panel => hidden by default */
+    .advanced-panel {
+      width: 300px;
+      background-color: #2f2f2f;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+      margin: 1rem;
+      padding: 1rem;
+      overflow: auto;
+      display: none; /* hidden at start, toggled with toggleAdvanced() */
+    }
+    .advanced-panel h2 {
+      margin-top: 0;
+      font-size: 1.0em;
+      color: #fff;
+    }
+
+    /* #advancedKnobs inside the advanced panel */
+    #advancedKnobs {
+      display: block;
+      border: 1px solid #666;
+      padding: 10px;
+      margin-top: 1em;
+      background-color: #2a2a2a;
+      border-radius: 6px;
+    }
+    #advancedKnobs h3 {
+      margin-top: 0;
+    }
+    .subSection {
+      margin-bottom: 1em;
+    }
+    .subSeparator {
+      margin: 0.75em 0;
+      border-bottom: 1px dashed #555;
+    }
+
+    /* Checkbox, input, etc. (dark theme) */
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      margin-right: 4px;
+      cursor: pointer;
+    }
+    input[type="text"],
+    input[type="number"] {
+      background-color: #333;
+      border: 1px solid #555;
+      color: #fff;
+      padding: 2px 4px;
+      margin: 2px 0;
+      border-radius: 4px;
+    }
+    label {
+      color: #ccc;
+    }
+
+    /* Footer progress bar => hidden by default, shown on propagate start */
+    #footerProgressContainer {
+      display: none; /* We'll show it dynamically */
+      text-align: center;
+    }
+
+    /* Modal for preview */
+    #previewModal {
+      position: fixed;
+      display: none; /* hidden by default */
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.7);
+    }
+    .modal-content {
+      background-color: #333;
+      margin: 5% auto;
+      padding: 2em;
+      width: 600px;
+      max-width: 90%;
+      border: 1px solid #444;
+      position: relative;
+      border-radius: 8px;
+    }
+    .modal-content h2 {
+      margin-top: 0;
+      color: #fff;
+    }
+    #closePreviewBtn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 28px;
+      font-weight: bold;
+      color: #aaa;
+      cursor: pointer;
+    }
+    #closePreviewBtn:hover {
+      color: #fff;
+    }
+    #previewVideo {
+      display: block;
+      width: 100%;
+      max-height: 400px;
+      background-color: #000;
+      margin-bottom: 1em;
+      border-radius: 4px;
+    }
+
+    /* Tooltip styling */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+      margin-left: 2px;
+    }
+    .tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-4px);
+      background-color: #444;
+      color: #fff;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      white-space: nowrap;
+      opacity: 0.95;
+      pointer-events: none;
+      z-index: 999;
+    }
+  </style>
+
+  <!-- Load OpenCV.js -->
+  <script src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+</head>
+<body>
+<div class="outer-wrapper">
+  <!-- Header -->
+  <header>
+    <h1>SAM2 Segmentation + Preview</h1>
+  </header>
+
+  <!-- Main area => left toolbox + center canvas + right advanced panel -->
+  <div class="main-area">
+    <!-- Toolbox on the left -->
+    <div class="toolbox">
+      <!-- Browse button -->
+      <button id="browseVideoBtn" title="Browse Video">
+        <i class="fas fa-folder-open"></i>
+      </button>
+      <!-- Load button -->
+      <button id="loadVideoBtn" title="Load Video">
+        <i class="fas fa-upload"></i>
+      </button>
+      <!-- Propagate button -->
+      <button id="propagateBtn" title="Propagate">
+        <i class="fas fa-play-circle"></i>
+      </button>
+
+      <hr />
+
+      <!-- Mode: Click -->
+      <button id="modeClickBtn" title="Click Mode (SAM2)">
+        <i class="fas fa-mouse-pointer"></i>
+      </button>
+      <!-- Mode: Box -->
+      <button id="modeBoxBtn" title="Box Mode (SAM2)">
+        <i class="fas fa-vector-square"></i>
+      </button>
+      <!-- Undo -->
+      <button id="undoBtn" title="Undo">
+        <i class="fas fa-undo"></i>
+      </button>
+
+      <hr />
+
+      <!-- Toggle advanced features -->
+      <button id="toggleAdvancedBtn" title="Show/Hide Advanced">
+        <i class="fas fa-cog"></i>
+      </button>
+    </div>
+
+    <!-- Center Canvas -->
+    <div class="center-canvas-area">
+      <canvas id="canvasFrame" width="640" height="360"></canvas>
+      <!-- Messages & extraction spinner below canvas -->
+      <div id="messages">Connected to SAM2 server</div>
+      <div id="extractSpinner" style="display:none;">
+        <i class="fas fa-circle-notch fa-spin extract-spinner"></i>
+        <span>Extracting frames...</span>
+      </div>
+    </div>
+
+    <!-- Right advanced panel (hidden by default) -->
+    <div class="advanced-panel" id="advancedKnobsContainer">
+      <h2>Advanced Features</h2>
+      <div id="advancedKnobs">
+        <h3>Segmentation Knobs</h3>
+
+        <!-- Logit Threshold -->
+        <div class="subSection">
+          <span class="tooltip" data-tooltip="Threshold for turning logits into a mask. Lower => bigger mask, higher => smaller.">
+            Logit Threshold:
+          </span>
+          <input type="number" id="logitThreshold" value="0" step="0.1" style="width:60px;">
+        </div>
+        <hr class="subSeparator">
+
+        <!-- Morphological -->
+        <div class="subSection">
+          <label class="tooltip" data-tooltip="Remove noise (open) and fill holes (close).">
+            <input type="checkbox" id="applyMorph"/>
+            Apply Morphological Open/Close
+          </label>
+          <br/>
+          &emsp;Open ksize:
+          <input type="number" id="morphKsizeOpen" value="3" min="1" max="50" step="1" style="width:50px;">
+          &emsp;Close ksize:
+          <input type="number" id="morphKsizeClose" value="3" min="1" max="50" step="1" style="width:50px;">
+        </div>
+        <hr class="subSeparator">
+
+        <!-- Area filter -->
+        <div class="subSection">
+          <label class="tooltip" data-tooltip="Ignore masks too small or too large by pixel area.">
+            <input type="checkbox" id="applyAreaFilter"/>
+            Apply Area Filter
+          </label>
+          <br/>
+          &emsp;Min Area:
+          <input type="number" id="minArea" value="0" step="1" style="width:60px;">
+          &emsp;Max Area:
+          <input type="number" id="maxArea" value="" step="1" style="width:60px;" placeholder="(none)">
+        </div>
+        <hr class="subSeparator">
+
+        <!-- Temporal smoothing -->
+        <div class="subSection">
+          <label class="tooltip" data-tooltip="Blend consecutive frames to reduce flicker.">
+            <input type="checkbox" id="applyTempSmooth"/>
+            Apply Temporal Smoothing
+          </label>
+          <br/>
+          &emsp;Blend Ratio:
+          <input type="number" id="blendRatio" value="0.5" min="0" max="1" step="0.1" style="width:60px;">
+        </div>
+        <hr class="subSeparator">
+
+        <!-- Dilation -->
+        <div class="subSection">
+          <span class="tooltip" data-tooltip="Expands mask outward. Larger => bigger final mask.">
+            Dilation Ksize:
+          </span>
+          <input type="number" id="dilationSize" value="5" min="1" max="50" step="1" style="width:60px;">
+          &emsp;
+          <span class="tooltip" data-tooltip="How many times to apply dilation repeatedly.">
+            Dilation Iterations:
+          </span>
+          <input type="number" id="dilationIterations" value="1" min="1" max="10" step="1" style="width:60px;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer with progress bar (hidden until propagation) -->
+  <footer>
+    <div id="footerProgressContainer">
+      <div>Progress:</div>
+      <progress id="propagateProgress" max="100" value="0" style="width:300px;"></progress>
+    </div>
+  </footer>
+</div>
+
+<!-- Modal for preview -->
+<div id="previewModal">
+  <div class="modal-content">
+    <span id="closePreviewBtn">&times;</span>
+    <h2>Video Preview</h2>
+    <video id="previewVideo" controls></video>
+    <div style="text-align:right;">
+      <button id="approveVideoBtn">Approve</button>
+      <button id="deleteVideoBtn">Discard &amp; Start Over</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/** WebSocket & global state */
+let ws = null;
+let isConnected = false;
+
+/** Keep track of the user-selected video path */
+let selectedVideoPath = "";
+
+/** Canvas & Mode State */
+let canvas = null;
+let ctx = null;
+let mode = "click";
+let drawingBox = false;
+let boxStart = null;
+let lastMat = null;
+
+/** UI Elements */
+let extractSpinner = null;
+let propagateProgress = null;
+let finalVideoPath = null;
+let footerProgressContainer = null;
+
+/** The server might downscale frames by 0.5, so we track an upscaling factor. */
+const UPSCALE_FACTOR = 2.0;
+
+window.onload = function() {
+  cv['onRuntimeInitialized'] = function() {
+    console.log("[DEBUG] OpenCV runtime initialized");
+
+    initWebSocket();
+
+    // Setup references
+    canvas = document.getElementById("canvasFrame");
+    ctx = canvas.getContext("2d");
+    extractSpinner = document.getElementById("extractSpinner");
+    propagateProgress = document.getElementById("propagateProgress");
+    footerProgressContainer = document.getElementById("footerProgressContainer");
+
+    // Event listeners
+    document.getElementById("browseVideoBtn").addEventListener("click", onBrowseVideo);
+    document.getElementById("loadVideoBtn").addEventListener("click", onLoadVideo);
+    document.getElementById("propagateBtn").addEventListener("click", onPropagate);
+
+    document.getElementById("modeClickBtn").addEventListener("click", () => switchMode("click"));
+    document.getElementById("modeBoxBtn").addEventListener("click", () => switchMode("box"));
+    document.getElementById("undoBtn").addEventListener("click", onUndo);
+
+    document.getElementById("toggleAdvancedBtn").addEventListener("click", toggleAdvanced);
+
+    // Modal
+    document.getElementById("closePreviewBtn").addEventListener("click", closeModal);
+    document.getElementById("approveVideoBtn").addEventListener("click", approveVideo);
+    document.getElementById("deleteVideoBtn").addEventListener("click", discardVideo);
+
+    // Canvas
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    showMessage("Connected to SAM2 server");
+    console.log("[DEBUG] UI initialization complete");
+  };
+};
+
+/** Initialize WebSocket connection */
+function initWebSocket() {
+  console.log("[DEBUG] Attempting to connect WebSocket...");
+  ws = new WebSocket("ws://localhost:8765");
+  ws.onopen = () => {
+    isConnected = true;
+    console.log("[DEBUG] WebSocket connected");
+    showMessage("Connected to SAM2 server");
+  };
+  ws.onclose = () => {
+    isConnected = false;
+    console.log("[DEBUG] WebSocket disconnected");
+    showMessage("Disconnected from server");
+  };
+  ws.onmessage = handleServerMessage;
+  ws.onerror = (err) => {
+    console.error("[DEBUG] WebSocket error:", err);
+  };
+}
+
+/** Handle server messages */
+async function handleServerMessage(event) {
+  let data;
+  try {
+    data = JSON.parse(event.data);
+  } catch (err) {
+    console.error("[DEBUG] Invalid JSON from server:", event.data, err);
+    return;
+  }
+  if (data.error) {
+    showMessage("Error: " + data.error);
+    return;
+  }
+
+  let action = data.action || data.type;
+  switch(action) {
+    case "video_ready":
+      // Hide the extraction spinner
+      extractSpinner.style.display = "none";
+      showMessage(data.msg || "Video ready.");
+      if (data.first_frame) {
+        let mat = await base64ToMat(data.first_frame);
+        if (lastMat) lastMat.delete();
+        lastMat = mat.clone();
+        showMatOnCanvas(mat);
+        mat.delete();
+      }
+      break;
+
+    case "mask_update":
+      if (!data.overlay) return;
+      let mat2 = await base64ToMat(data.overlay);
+      if (lastMat) lastMat.delete();
+      lastMat = mat2.clone();
+      showMatOnCanvas(mat2);
+      mat2.delete();
+      break;
+
+    case "progress":
+      if (typeof data.percent === "number") {
+        propagateProgress.value = data.percent;
+      }
+      showMessage(data.msg || "");
+      break;
+
+    case "propagation_done":
+      console.log("[DEBUG] propagation_done => output path:", data.output_path);
+      showMessage((data.msg || "Propagation done") + " => " + data.output_path);
+      propagateProgress.value = 100;
+      finalVideoPath = data.output_path;
+      openPreviewModal(finalVideoPath);
+      break;
+
+    default:
+      console.log("[DEBUG] Unknown action from server:", action, data);
+      break;
+  }
+}
+
+/**
+ * Let user browse for a video (Electron or fallback).
+ * We store the chosen path in the global selectedVideoPath.
+ */
+async function onBrowseVideo() {
+  try {
+    if (!window.electronAPI || !window.electronAPI.openFileDialog) {
+      console.warn("No electronAPI.openFileDialog(), fallback => postMessage");
+      window.parent.postMessage({ action: 'OPEN_FILE_DIALOG' }, '*');
+      return;
+    }
+    const filePath = await window.electronAPI.openFileDialog({
+      filters: [{ name: 'Video Files', extensions: ['mp4','mov','mkv','avi'] }]
+    });
+    if (filePath) {
+      console.log("[DEBUG] Selected video path:", filePath);
+      selectedVideoPath = filePath;  // Store globally
+      showMessage("Video selected: " + filePath);
+    }
+  } catch (err) {
+    console.error("[DEBUG] onBrowseVideo error:", err);
+  }
+}
+
+/** Load the chosen video => server extraction */
+function onLoadVideo() {
+  if (!isConnected) {
+    alert("Not connected to server.");
+    return;
+  }
+  if (!selectedVideoPath) {
+    alert("Please browse for a video first.");
+    return;
+  }
+  extractSpinner.style.display = "inline-block"; // Show spinner
+  propagateProgress.value = 0;                   // Reset progress
+
+  ws.send(JSON.stringify({
+    action: "upload_video",
+    payload: { video_path: selectedVideoPath }
+  }));
+}
+
+/**
+ * On Propagate:
+ * 1) Prompt user for directory
+ * 2) SweetAlert for naming file
+ * 3) Show progress bar container
+ * 4) Send propagate
+ */
+async function onPropagate() {
+  if (!isConnected) {
+    alert("Not connected to server.");
+    return;
+  }
+  propagateProgress.value = 0;
+
+  // 1) Prompt for directory
+  let outDir = "";
+  try {
+    if (window.electronAPI && window.electronAPI.openDirectoryDialog) {
+      outDir = await window.electronAPI.openDirectoryDialog();
+    } else {
+      // fallback
+      showMessage("Please select directory outside the app (fallback).");
+      window.parent.postMessage({ action: 'OPEN_DIRECTORY_DIALOG' }, '*');
+      return;
+    }
+  } catch(e) {
+    console.error("[DEBUG] onPropagate directory selection error:", e);
+    showMessage("Directory selection was canceled.");
+    return;
+  }
+  if (!outDir) {
+    showMessage("No directory chosen, propagation canceled.");
+    return;
+  }
+
+  // 2) SweetAlert for filename
+  let { value: chosenName } = await Swal.fire({
+    title: 'Enter output filename',
+    input: 'text',
+    inputPlaceholder: 'output_segmented_sam2.mp4',
+    showCancelButton: true,
+    confirmButtonText: 'OK',
+    cancelButtonText: 'Cancel'
+  });
+  if (!chosenName) {
+    showMessage("No filename chosen, propagation canceled.");
+    return;
+  }
+
+  const sep = (outDir.endsWith("\\") || outDir.endsWith("/")) ? "" : "/";
+  const outPath = outDir + sep + chosenName;
+
+  // 3) Show progress bar in footer
+  footerProgressContainer.style.display = "block";
+
+  // 4) Gather advanced knobs & do the propagate
+  let payload = gatherKnobs();
+  payload.output_path = outPath;
+  payload.fps = 30; // or whichever default
+
+  console.log("[DEBUG] Sending propagate request with path:", outPath);
+  ws.send(JSON.stringify({ action: "propagate", payload }));
+}
+
+/** Switch mode between click & box */
+function switchMode(newMode) {
+  mode = newMode;
+  showMessage("Mode: " + newMode + " (SAM2 prompt)");
+}
+
+/** Undo last click/box */
+function onUndo() {
+  if (!isConnected) return;
+  propagateProgress.value = 0;
+  let payload = gatherKnobs();
+  payload.mode = mode; // "click" or "box"
+  ws.send(JSON.stringify({ action: "undo", payload }));
+}
+
+/** Collect advanced knob values */
+function gatherKnobs() {
+  let logitThreshold = parseFloat(document.getElementById("logitThreshold").value) || 0.0;
+
+  let applyMorph = document.getElementById("applyMorph").checked;
+  let morphKsizeOpen = parseInt(document.getElementById("morphKsizeOpen").value) || 3;
+  let morphKsizeClose = parseInt(document.getElementById("morphKsizeClose").value) || 3;
+
+  let applyAreaFilter = document.getElementById("applyAreaFilter").checked;
+  let minArea = parseInt(document.getElementById("minArea").value) || 0;
+  let maxAreaRaw = document.getElementById("maxArea").value.trim();
+  let maxArea = maxAreaRaw ? parseInt(maxAreaRaw) : null;
+
+  let applyTempSmooth = document.getElementById("applyTempSmooth").checked;
+  let blendRatio = parseFloat(document.getElementById("blendRatio").value) || 0.5;
+
+  let dilationSize = parseInt(document.getElementById("dilationSize").value) || 5;
+  let dilationIterations = parseInt(document.getElementById("dilationIterations").value) || 1;
+
+  return {
+    logit_threshold: logitThreshold,
+    apply_morph: applyMorph,
+    morph_ksize_open: morphKsizeOpen,
+    morph_ksize_close: morphKsizeClose,
+    apply_area_filter: applyAreaFilter,
+    min_area: minArea,
+    max_area: maxArea,
+    apply_temp_smooth: applyTempSmooth,
+    blend_ratio: blendRatio,
+    dilation_ksize: dilationSize,
+    dilation_iters: dilationIterations
+  };
+}
+
+/** Canvas Mousedown => handle click or start box */
+function onMouseDown(e) {
+  if (!isConnected) return;
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+  let xFull = Math.round(xHalf * UPSCALE_FACTOR);
+  let yFull = Math.round(yHalf * UPSCALE_FACTOR);
+
+  if (mode === "click") {
+    let label = (e.button === 2) ? 0 : 1; // right-click => label=0
+    let payload = gatherKnobs();
+    payload.x = xFull;
+    payload.y = yFull;
+    payload.label = label;
+
+    console.log("[DEBUG] Sending add_click");
+    ws.send(JSON.stringify({ action: "add_click", payload }));
+  }
+  else if (mode === "box") {
+    drawingBox = true;
+    boxStart = { xHalf, yHalf };
+  }
+}
+
+/** Canvas Mousemove => ephemeral bounding box if box mode */
+function onMouseMove(e) {
+  if (mode !== "box" || !drawingBox || !lastMat) return;
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+
+  let tmp = lastMat.clone();
+  let x1 = Math.min(boxStart.xHalf, xHalf);
+  let y1 = Math.min(boxStart.yHalf, yHalf);
+  let x2 = Math.max(boxStart.xHalf, xHalf);
+  let y2 = Math.max(boxStart.yHalf, yHalf);
+
+  cv.rectangle(tmp, new cv.Point(x1, y1), new cv.Point(x2, y2),
+               new cv.Scalar(0,255,0,255), 2);
+  showMatOnCanvas(tmp);
+  tmp.delete();
+}
+
+/** Canvas Mouseup => finalize bounding box */
+function onMouseUp(e) {
+  if (mode !== "box" || !drawingBox) return;
+  drawingBox = false;
+
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+  let x1Half = Math.min(boxStart.xHalf, xHalf);
+  let y1Half = Math.min(boxStart.yHalf, yHalf);
+  let x2Half = Math.max(boxStart.xHalf, xHalf);
+  let y2Half = Math.max(boxStart.yHalf, yHalf);
+
+  let x1Full = Math.round(x1Half * UPSCALE_FACTOR);
+  let y1Full = Math.round(y1Half * UPSCALE_FACTOR);
+  let x2Full = Math.round(x2Half * UPSCALE_FACTOR);
+  let y2Full = Math.round(y2Half * UPSCALE_FACTOR);
+
+  // revert canvas to last known overlay
+  if (lastMat) showMatOnCanvas(lastMat);
+
+  let payload = gatherKnobs();
+  payload.x1 = x1Full;
+  payload.y1 = y1Full;
+  payload.x2 = x2Full;
+  payload.y2 = y2Full;
+
+  console.log("[DEBUG] Sending set_box");
+  ws.send(JSON.stringify({ action: "set_box", payload }));
+}
+
+/** Toggle advanced panel on the right */
+function toggleAdvanced() {
+  let advPanel = document.getElementById("advancedKnobsContainer");
+  let btn = document.getElementById("toggleAdvancedBtn");
+  if (advPanel.style.display === "none" || advPanel.style.display === "") {
+    advPanel.style.display = "block";
+    btn.title = "Hide Advanced Features";
+  } else {
+    advPanel.style.display = "none";
+    btn.title = "Show Advanced Features";
+  }
+}
+
+/** Open the preview modal with final video */
+function openPreviewModal(videoPath) {
+  const modal = document.getElementById("previewModal");
+  const videoEl = document.getElementById("previewVideo");
+
+  let fileUrl = "file://" + videoPath.replace(/\\/g, "/");
+  videoEl.src = fileUrl;
+  videoEl.load();
+  videoEl.play().catch(err => {
+    console.warn("[DEBUG] Video autoplay might be blocked:", err);
+  });
+  modal.style.display = "block";
+}
+
+/** Close the preview modal */
+function closeModal() {
+  const modal = document.getElementById("previewModal");
+  modal.style.display = "none";
+  const videoEl = document.getElementById("previewVideo");
+  videoEl.pause();
+  videoEl.src = "";
+}
+
+/** Approve final video => keep it, close modal */
+function approveVideo() {
+  console.log("[DEBUG] User approved video:", finalVideoPath);
+  showMessage("Video approved! File kept at: " + finalVideoPath);
+  closeModal();
+}
+
+/** Discard final video => delete from disk, reset, close modal */
+async function discardVideo() {
+  console.log("[DEBUG] User discarding video:", finalVideoPath);
+  closeModal();
+
+  if (!finalVideoPath) {
+    showMessage("No final video to discard.");
+    return;
+  }
+  if (window.electronAPI && window.electronAPI.deleteFile) {
+    try {
+      await window.electronAPI.deleteFile(finalVideoPath);
+      console.log("[DEBUG] Successfully deleted file:", finalVideoPath);
+      showMessage("Video discarded and file deleted.");
+    } catch (err) {
+      console.error("[DEBUG] Error deleting file:", err);
+      showMessage("Error deleting file: " + err.toString());
+    }
+  } else {
+    console.warn("No electronAPI.deleteFile found. Implement as needed.");
+    showMessage("Discard requested, but no electronAPI to delete file.");
+  }
+  finalVideoPath = null;
+}
+
+/** Convert base64 => OpenCV Mat */
+async function base64ToMat(base64Str) {
+  return new Promise((resolve, reject) => {
+    let img = new Image();
+    img.onload = function() {
+      let offCanvas = document.createElement('canvas');
+      offCanvas.width = img.width;
+      offCanvas.height = img.height;
+      offCanvas.getContext('2d').drawImage(img, 0, 0);
+      let mat = cv.imread(offCanvas);
+      resolve(mat);
+    };
+    img.onerror = function(err) {
+      reject(err);
+    };
+    img.src = base64Str;
+  });
+}
+
+/** Show a Mat on the canvas */
+function showMatOnCanvas(mat) {
+  canvas.width = mat.cols;
+  canvas.height = mat.rows;
+  cv.imshow(canvas, mat);
+}
+
+/** Display a message in #messages */
+function showMessage(msg) {
+  document.getElementById("messages").textContent = msg;
+}
+
+/* Parent postMessage fallback (non-Electron) */
+window.addEventListener('message', (event) => {
+  if (!event.data) return;
+  const { action, filePath, dirPath } = event.data;
+
+  if (action === 'OPEN_FILE_DIALOG_RESULT' && filePath) {
+    console.log("Fallback: got filePath from parent:", filePath);
+    // Store in global
+    selectedVideoPath = filePath;
+    showMessage("Video selected: " + filePath);
+  } else if (action === 'OPEN_DIRECTORY_DIALOG_RESULT' && dirPath) {
+    console.log("Fallback: got dirPath from parent:", dirPath);
+    // We can handle that path similarly if needed
+  }
+});
+</script>
+</body>
+</html>

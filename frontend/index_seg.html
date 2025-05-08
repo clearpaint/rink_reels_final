@@ -1,0 +1,556 @@
+<!-- same index.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SAM2 </title>
+  <style>
+    /* Dark Theme */
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background-color: #1e1e1e;
+      color: #ccc;
+    }
+    h1 {
+      margin: 0;
+      padding: 1em;
+      background-color: #292929;
+      font-size: 1.2em;
+      border-bottom: 1px solid #444;
+    }
+    .container {
+      padding: 1em;
+    }
+    .separator {
+      margin: 1em 0;
+      border-bottom: 1px solid #444;
+    }
+    .subSeparator {
+      margin: 0.75em 0;
+      border-bottom: 1px dashed #555;
+    }
+    #canvasFrame {
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+    button {
+      margin: 5px;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #444;
+    }
+    #messages {
+      margin-top: 1em;
+      color: #aaf;
+    }
+    .progress-container {
+      margin-top: 1em;
+    }
+    #extractSection {
+      display: none; /* hidden by default */
+    }
+    input[type="text"],
+    input[type="number"] {
+      background-color: #333;
+      border: 1px solid #555;
+      color: #fff;
+      padding: 2px 4px;
+      margin: 2px 0;
+    }
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      margin-right: 4px;
+      cursor: pointer;
+    }
+    label {
+      color: #ccc;
+    }
+    /* Tooltip container for help text */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+      margin-left: 2px;
+    }
+    .tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      /* Position above the element with a small offset */
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-4px);
+      background-color: #444;
+      color: #fff;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      white-space: nowrap;
+      opacity: 0.95;
+      pointer-events: none;
+      z-index: 999;
+    }
+    /* Advanced panel */
+    #advancedKnobs {
+      display: none;
+      border: 1px solid #666;
+      padding: 10px;
+      margin: 1em 0;
+      background-color: #2a2a2a;
+    }
+    h3 {
+      margin-top: 0;
+    }
+    .subSection {
+      margin-bottom: 1em;
+    }
+  </style>
+  <!-- Load OpenCV.js -->
+  <script src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+</head>
+<body>
+<h1>SAM2 Segmentation</h1>
+
+<div class="container">
+  <!-- VIDEO PATH & Extraction Progress -->
+  <div>
+    <label for="videoPath" style="display:inline-block; width:80px;">Video Path:</label>
+    <input type="text" id="videoPath" size="50" value="video2.mp4" style="width:300px;">
+    <button id="loadVideoBtn">Load Video</button>
+  </div>
+
+  <div id="extractSection" class="progress-container">
+    <div>Extraction Progress:</div>
+    <progress id="extractProgress" max="100" style="width:300px;"></progress>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Mode selection + Undo -->
+  <div>
+    <button id="modeClickBtn">Click Mode (SAM2)</button>
+    <button id="modeBoxBtn">Box Mode (SAM2)</button>
+    <button id="undoBtn">Undo</button>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Toggle advanced features -->
+  <div>
+    <button id="toggleAdvancedBtn">Show Advanced Features</button>
+  </div>
+
+  <!-- ADVANCED KNOBS (hidden by default) -->
+  <div id="advancedKnobs">
+    <h3>Segmentation Knobs</h3>
+
+    <!-- Logit Threshold -->
+    <div class="subSection">
+      <div>
+        <span class="tooltip"
+              data-tooltip="Threshold for turning logits into a mask. Lower => bigger mask, higher => smaller.">
+          Logit Threshold:
+        </span>
+        <input type="number" id="logitThreshold" value="0" step="0.1" style="width:60px;">
+      </div>
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Morphological -->
+    <div class="subSection">
+      <label class="tooltip" data-tooltip="Remove noise (open) and fill holes (close).">
+        <input type="checkbox" id="applyMorph"/>
+        Apply Morphological Open/Close
+      </label>
+      <br/>
+      &emsp;Open ksize:
+      <input type="number" id="morphKsizeOpen" value="3" min="1" max="50" step="1" style="width:50px;">
+      &emsp;Close ksize:
+      <input type="number" id="morphKsizeClose" value="3" min="1" max="50" step="1" style="width:50px;">
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Area filter -->
+    <div class="subSection">
+      <label class="tooltip" data-tooltip="Ignore masks too small or too large by pixel area.">
+        <input type="checkbox" id="applyAreaFilter"/>
+        Apply Area Filter
+      </label>
+      <br/>
+      &emsp;Min Area:
+      <input type="number" id="minArea" value="0" step="1" style="width:60px;">
+      &emsp;Max Area:
+      <input type="number" id="maxArea" value="" step="1" style="width:60px;" placeholder="(none)">
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Temporal smoothing -->
+    <div class="subSection">
+      <label class="tooltip" data-tooltip="Blend consecutive frames to reduce flicker.">
+        <input type="checkbox" id="applyTempSmooth"/>
+        Apply Temporal Smoothing
+      </label>
+      <br/>
+      &emsp;Blend Ratio:
+      <input type="number" id="blendRatio" value="0.5" min="0" max="1" step="0.1" style="width:60px;">
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Dilation -->
+    <div class="subSection">
+      <span class="tooltip"
+            data-tooltip="Expands mask outward. Larger => bigger final mask.">
+        Dilation Ksize:
+      </span>
+      <input type="number" id="dilationSize" value="5" min="1" max="50" step="1" style="width:60px;">
+      &emsp;
+      <span class="tooltip"
+            data-tooltip="How many times to apply dilation repeatedly.">
+        Dilation Iterations:
+      </span>
+      <input type="number" id="dilationIterations" value="1" min="1" max="10" step="1" style="width:60px;">
+    </div>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Propagate button outside advanced panel -->
+  <div>
+    <button id="propagateBtn">Propagate (SAM2)</button>
+  </div>
+
+  <!-- Another progress bar -->
+  <div class="progress-container">
+    <div>Progress:</div>
+    <progress id="propagateProgress" max="100" value="0" style="width:300px;"></progress>
+  </div>
+
+  <canvas id="canvasFrame"></canvas>
+  <div id="messages"></div>
+</div>
+
+<script>
+let ws = null;
+let isConnected = false;
+
+let canvas = null;
+let ctx = null;
+
+let extractSection = null;
+let extractProgress = null;
+let propagateProgress = null;
+
+let mode = "click";
+let drawingBox = false;
+let boxStart = null;
+
+const UPSCALE_FACTOR = 2.0; // server downscales image by factor=0.5
+
+// We'll keep a global reference to the last displayed Mat so we can draw ephemeral boxes
+let lastMat = null;
+
+window.onload = function() {
+  cv['onRuntimeInitialized'] = function() {
+    ws = new WebSocket("ws://localhost:8765");
+    ws.onopen = () => {
+      isConnected = true;
+      showMessage("Connected to SAM2 server");
+    };
+    ws.onclose = () => {
+      isConnected = false;
+      showMessage("Disconnected from server");
+    };
+    ws.onmessage = handleServerMessage;
+
+    canvas = document.getElementById("canvasFrame");
+    ctx = canvas.getContext("2d");
+    extractSection = document.getElementById("extractSection");
+    extractProgress = document.getElementById("extractProgress");
+    propagateProgress = document.getElementById("propagateProgress");
+
+    document.getElementById("loadVideoBtn").addEventListener("click", onLoadVideo);
+    document.getElementById("modeClickBtn").addEventListener("click", () => {
+      mode = "click";
+      showMessage("Mode: click (SAM2 click prompts)");
+    });
+    document.getElementById("modeBoxBtn").addEventListener("click", () => {
+      mode = "box";
+      showMessage("Mode: box (SAM2 bounding box prompt)");
+    });
+    document.getElementById("undoBtn").addEventListener("click", onUndo);
+    document.getElementById("propagateBtn").addEventListener("click", onPropagate);
+    document.getElementById("toggleAdvancedBtn").addEventListener("click", toggleAdvanced);
+
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  };
+};
+
+function toggleAdvanced() {
+  let advDiv = document.getElementById("advancedKnobs");
+  let btn = document.getElementById("toggleAdvancedBtn");
+  if (advDiv.style.display === "none") {
+    advDiv.style.display = "block";
+    btn.textContent = "Hide Advanced Features";
+  } else {
+    advDiv.style.display = "none";
+    btn.textContent = "Show Advanced Features";
+  }
+}
+
+async function handleServerMessage(event) {
+  let data;
+  try {
+    data = JSON.parse(event.data);
+  } catch (err) {
+    console.error("Invalid JSON from server:", event.data);
+    return;
+  }
+  if (data.error) {
+    showMessage("Error: " + data.error);
+    return;
+  }
+
+  let action = data.action || data.type;
+  if (action === "video_ready") {
+    extractProgress.value = 100;
+    showMessage(data.msg);
+
+    let mat = await base64ToMat(data.first_frame);
+    if (lastMat) lastMat.delete();
+    lastMat = mat.clone();
+    showMatOnCanvas(mat);
+    mat.delete();
+  }
+  else if (action === "mask_update") {
+    // partial overlay => store as lastMat
+    let mat = await base64ToMat(data.overlay);
+    if (lastMat) lastMat.delete();
+    lastMat = mat.clone();
+    showMatOnCanvas(mat);
+    mat.delete();
+  }
+  else if (action === "progress") {
+    if (data.percent !== undefined) {
+      propagateProgress.value = data.percent;
+    }
+    showMessage(data.msg);
+  }
+  else if (action === "propagation_done") {
+    showMessage(data.msg + " => " + data.output_path);
+    propagateProgress.value = 100;
+  }
+}
+
+function onLoadVideo() {
+  if (!isConnected) {
+    alert("Not connected to server.");
+    return;
+  }
+  let videoPath = document.getElementById("videoPath").value.trim();
+  if (!videoPath) {
+    alert("Please enter a server-side video path");
+    return;
+  }
+  extractSection.style.display = "block";
+  extractProgress.removeAttribute("value");
+  propagateProgress.value = 0;
+
+  ws.send(JSON.stringify({
+    action: "upload_video",
+    payload: {
+      video_path: videoPath
+    }
+  }));
+}
+
+function onUndo() {
+  if (!isConnected) return;
+  propagateProgress.value = 0; // reset progress
+  let payload = gatherKnobs();
+  let m = (mode === "click") ? "click" : "box";
+  payload.mode = m;
+
+  ws.send(JSON.stringify({
+    action: "undo",
+    payload
+  }));
+}
+
+function onPropagate() {
+  if (!isConnected) return;
+  propagateProgress.value = 0;
+  let payload = gatherKnobs();
+
+  payload.output_path = "output_segmented_sam2.mp4";
+  payload.fps = 30;
+
+  ws.send(JSON.stringify({
+    action: "propagate",
+    payload
+  }));
+}
+
+// ephemeral bounding box on mouse drag
+function onMouseDown(e) {
+  if (!isConnected) return;
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+  let xFull = Math.round(xHalf * UPSCALE_FACTOR);
+  let yFull = Math.round(yHalf * UPSCALE_FACTOR);
+
+  if (mode === "click") {
+    // left click => label=1, right => label=0
+    let label = (e.button === 2) ? 0 : 1;
+    let payload = gatherKnobs();
+    payload.x = xFull;
+    payload.y = yFull;
+    payload.label = label;
+
+    ws.send(JSON.stringify({
+      action: "add_click",
+      payload
+    }));
+  }
+  else if (mode === "box") {
+    drawingBox = true;
+    boxStart = { xHalf, yHalf };
+  }
+}
+
+function onMouseMove(e) {
+  if (mode === "box" && drawingBox && lastMat) {
+    let rect = canvas.getBoundingClientRect();
+    let xHalf = e.clientX - rect.left;
+    let yHalf = e.clientY - rect.top;
+
+    // ephemeral bounding box overlay
+    let tmp = lastMat.clone();
+    let x1 = Math.min(boxStart.xHalf, xHalf);
+    let y1 = Math.min(boxStart.yHalf, yHalf);
+    let x2 = Math.max(boxStart.xHalf, xHalf);
+    let y2 = Math.max(boxStart.yHalf, yHalf);
+
+    // draw a green rectangle
+    cv.rectangle(
+      tmp,
+      new cv.Point(x1, y1),
+      new cv.Point(x2, y2),
+      new cv.Scalar(0,255,0,255),
+      2
+    );
+    showMatOnCanvas(tmp);
+    tmp.delete();
+  }
+}
+
+function onMouseUp(e) {
+  if (mode !== "box" || !drawingBox) return;
+  drawingBox = false;
+
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+
+  let x1Half = Math.min(boxStart.xHalf, xHalf);
+  let y1Half = Math.min(boxStart.yHalf, yHalf);
+  let x2Half = Math.max(boxStart.xHalf, xHalf);
+  let y2Half = Math.max(boxStart.yHalf, yHalf);
+
+  let x1Full = Math.round(x1Half * UPSCALE_FACTOR);
+  let y1Full = Math.round(y1Half * UPSCALE_FACTOR);
+  let x2Full = Math.round(x2Half * UPSCALE_FACTOR);
+  let y2Full = Math.round(y2Half * UPSCALE_FACTOR);
+
+  // revert canvas to the last known mask overlay
+  if (lastMat) showMatOnCanvas(lastMat);
+
+  let payload = gatherKnobs();
+  payload.x1 = x1Full;
+  payload.y1 = y1Full;
+  payload.x2 = x2Full;
+  payload.y2 = y2Full;
+
+  ws.send(JSON.stringify({
+    action: "set_box",
+    payload
+  }));
+}
+
+// gather all advanced knobs
+function gatherKnobs() {
+  let logitThreshold = parseFloat(document.getElementById("logitThreshold").value) || 0.0;
+
+  let applyMorph = document.getElementById("applyMorph").checked;
+  let morphKsizeOpen = parseInt(document.getElementById("morphKsizeOpen").value) || 3;
+  let morphKsizeClose = parseInt(document.getElementById("morphKsizeClose").value) || 3;
+
+  let applyAreaFilter = document.getElementById("applyAreaFilter").checked;
+  let minArea = parseInt(document.getElementById("minArea").value) || 0;
+  let maxAreaRaw = document.getElementById("maxArea").value.trim();
+  let maxArea = maxAreaRaw ? parseInt(maxAreaRaw) : null;
+
+  let applyTempSmooth = document.getElementById("applyTempSmooth").checked;
+  let blendRatio = parseFloat(document.getElementById("blendRatio").value) || 0.5;
+
+  let dilationSize = parseInt(document.getElementById("dilationSize").value) || 5;
+  let dilationIterations = parseInt(document.getElementById("dilationIterations").value) || 1;
+
+  return {
+    logit_threshold: logitThreshold,
+
+    apply_morph: applyMorph,
+    morph_ksize_open: morphKsizeOpen,
+    morph_ksize_close: morphKsizeClose,
+
+    apply_area_filter: applyAreaFilter,
+    min_area: minArea,
+    max_area: maxArea,
+
+    apply_temp_smooth: applyTempSmooth,
+    blend_ratio: blendRatio,
+
+    dilation_ksize: dilationSize,
+    dilation_iters: dilationIterations
+  };
+}
+
+// base64 => OpenCV Mat
+async function base64ToMat(base64Str) {
+  let img = new Image();
+  img.src = base64Str;
+  await img.decode();
+  let offCanvas = document.createElement('canvas');
+  offCanvas.width = img.width;
+  offCanvas.height = img.height;
+  offCanvas.getContext('2d').drawImage(img, 0, 0);
+  return cv.imread(offCanvas);
+}
+
+// show Mat on <canvas>
+function showMatOnCanvas(mat) {
+  canvas.width = mat.cols;
+  canvas.height = mat.rows;
+  cv.imshow(canvas, mat);
+}
+
+function showMessage(msg) {
+  document.getElementById("messages").textContent = msg;
+}
+</script>
+</body>
+</html>

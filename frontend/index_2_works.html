@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SAM2: Segmentation with Preview</title>
+  <style>
+    /* Dark Theme */
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background-color: #1e1e1e;
+      color: #ccc;
+    }
+    h1 {
+      margin: 0;
+      padding: 1em;
+      background-color: #292929;
+      font-size: 1.2em;
+      border-bottom: 1px solid #444;
+    }
+    .container {
+      padding: 1em;
+    }
+    .separator {
+      margin: 1em 0;
+      border-bottom: 1px solid #444;
+    }
+    .subSeparator {
+      margin: 0.75em 0;
+      border-bottom: 1px dashed #555;
+    }
+    #canvasFrame {
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+    button {
+      margin: 5px;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #444;
+    }
+    #messages {
+      margin-top: 1em;
+      color: #aaf;
+      min-height: 1.5em;
+    }
+    .progress-container {
+      margin-top: 1em;
+    }
+    #extractSection {
+      display: none; /* hidden by default */
+    }
+    input[type="text"],
+    input[type="number"] {
+      background-color: #333;
+      border: 1px solid #555;
+      color: #fff;
+      padding: 2px 4px;
+      margin: 2px 0;
+    }
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      margin-right: 4px;
+      cursor: pointer;
+    }
+    label {
+      color: #ccc;
+    }
+    /* Tooltip container for help text */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+      margin-left: 2px;
+    }
+    .tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-4px);
+      background-color: #444;
+      color: #fff;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      white-space: nowrap;
+      opacity: 0.95;
+      pointer-events: none;
+      z-index: 999;
+    }
+    /* Advanced panel */
+    #advancedKnobs {
+      display: none;
+      border: 1px solid #666;
+      padding: 10px;
+      margin: 1em 0;
+      background-color: #2a2a2a;
+    }
+    h3 {
+      margin-top: 0;
+    }
+    .subSection {
+      margin-bottom: 1em;
+    }
+
+    /* Modal Styles */
+    #previewModal {
+      position: fixed;
+      display: none; /* hidden by default */
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto; /* Enable scroll if needed */
+      background-color: rgba(0,0,0,0.7); /* black overlay */
+    }
+    .modal-content {
+      background-color: #333;
+      margin: 5% auto;
+      padding: 2em;
+      width: 600px;
+      max-width: 90%;
+      border: 1px solid #444;
+      position: relative;
+    }
+    .modal-content h2 {
+      margin-top: 0;
+      color: #fff;
+    }
+    #closePreviewBtn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 28px;
+      font-weight: bold;
+      color: #aaa;
+      cursor: pointer;
+    }
+    #closePreviewBtn:hover {
+      color: #fff;
+    }
+    #previewVideo {
+      display: block;
+      width: 100%;
+      max-height: 400px;
+      background-color: #000;
+      margin-bottom: 1em;
+    }
+  </style>
+  <!-- Load OpenCV.js -->
+  <script src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+</head>
+<body>
+<h1>SAM2 Segmentation + Preview</h1>
+
+<div class="container">
+
+  <!-- VIDEO PATH & Extraction Progress -->
+  <div>
+    <label for="videoPath" style="display:inline-block; width:80px;">Video Path:</label>
+    <input type="text" id="videoPath" size="50" value="" style="width:300px;" placeholder="(Choose a file)">
+    <button id="browseVideoBtn">Browse…</button>
+    <button id="loadVideoBtn">Load Video</button>
+  </div>
+
+  <div id="extractSection" class="progress-container">
+    <div>Extraction Progress:</div>
+    <progress id="extractProgress" max="100" style="width:300px;"></progress>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Mode selection + Undo -->
+  <div>
+    <button id="modeClickBtn">Click Mode (SAM2)</button>
+    <button id="modeBoxBtn">Box Mode (SAM2)</button>
+    <button id="undoBtn">Undo</button>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Toggle advanced features -->
+  <div>
+    <button id="toggleAdvancedBtn">Show Advanced Features</button>
+  </div>
+
+  <!-- ADVANCED KNOBS (hidden by default) -->
+  <div id="advancedKnobs">
+    <h3>Segmentation Knobs</h3>
+
+    <!-- Logit Threshold -->
+    <div class="subSection">
+      <div>
+        <span class="tooltip"
+              data-tooltip="Threshold for turning logits into a mask. Lower => bigger mask, higher => smaller.">
+          Logit Threshold:
+        </span>
+        <input type="number" id="logitThreshold" value="0" step="0.1" style="width:60px;">
+      </div>
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Morphological -->
+    <div class="subSection">
+      <label class="tooltip" data-tooltip="Remove noise (open) and fill holes (close).">
+        <input type="checkbox" id="applyMorph"/>
+        Apply Morphological Open/Close
+      </label>
+      <br/>
+      &emsp;Open ksize:
+      <input type="number" id="morphKsizeOpen" value="3" min="1" max="50" step="1" style="width:50px;">
+      &emsp;Close ksize:
+      <input type="number" id="morphKsizeClose" value="3" min="1" max="50" step="1" style="width:50px;">
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Area filter -->
+    <div class="subSection">
+      <label class="tooltip" data-tooltip="Ignore masks too small or too large by pixel area.">
+        <input type="checkbox" id="applyAreaFilter"/>
+        Apply Area Filter
+      </label>
+      <br/>
+      &emsp;Min Area:
+      <input type="number" id="minArea" value="0" step="1" style="width:60px;">
+      &emsp;Max Area:
+      <input type="number" id="maxArea" value="" step="1" style="width:60px;" placeholder="(none)">
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Temporal smoothing -->
+    <div class="subSection">
+      <label class="tooltip" data-tooltip="Blend consecutive frames to reduce flicker.">
+        <input type="checkbox" id="applyTempSmooth"/>
+        Apply Temporal Smoothing
+      </label>
+      <br/>
+      &emsp;Blend Ratio:
+      <input type="number" id="blendRatio" value="0.5" min="0" max="1" step="0.1" style="width:60px;">
+    </div>
+
+    <hr class="subSeparator">
+
+    <!-- Dilation -->
+    <div class="subSection">
+      <span class="tooltip"
+            data-tooltip="Expands mask outward. Larger => bigger final mask.">
+        Dilation Ksize:
+      </span>
+      <input type="number" id="dilationSize" value="5" min="1" max="50" step="1" style="width:60px;">
+      &emsp;
+      <span class="tooltip"
+            data-tooltip="How many times to apply dilation repeatedly.">
+        Dilation Iterations:
+      </span>
+      <input type="number" id="dilationIterations" value="1" min="1" max="10" step="1" style="width:60px;">
+    </div>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Propagate button + output name/directory -->
+  <div style="margin-bottom: 0.5em;">
+    <label for="outputName" style="display:inline-block; width:120px;">Output Filename:</label>
+    <input type="text" id="outputName" value="output_segmented_sam2.mp4" style="width:240px;">
+  </div>
+  <div style="margin-bottom: 1em;">
+    <label for="outputDir" style="display:inline-block; width:120px;">Output Directory:</label>
+    <input type="text" id="outputDir" value="" style="width:240px;" placeholder="(Choose folder)">
+    <button id="browseOutputBtn">Browse…</button>
+  </div>
+  <div>
+    <button id="propagateBtn">Propagate (SAM2)</button>
+  </div>
+
+  <!-- Another progress bar -->
+  <div class="progress-container">
+    <div>Progress:</div>
+    <progress id="propagateProgress" max="100" value="0" style="width:300px;"></progress>
+  </div>
+
+  <canvas id="canvasFrame"></canvas>
+  <div id="messages"></div>
+</div>
+
+<!-- Modal for preview -->
+<div id="previewModal">
+  <div class="modal-content">
+    <span id="closePreviewBtn">&times;</span>
+    <h2>Video Preview</h2>
+    <video id="previewVideo" controls></video>
+    <div style="text-align:right;">
+      <button id="approveVideoBtn">Approve</button>
+      <button id="deleteVideoBtn">Discard &amp; Start Over</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/** WebSocket & global state */
+let ws = null;
+let isConnected = false;
+
+/** Canvas & Mode State */
+let canvas = null;
+let ctx = null;
+let mode = "click";
+let drawingBox = false;
+let boxStart = null;
+let lastMat = null; // store last displayed Mat
+
+/** UI Elements */
+let extractSection = null;
+let extractProgress = null;
+let propagateProgress = null;
+
+/** Output path for final video */
+let finalVideoPath = null;
+
+/** The server might downscale frames by 0.5, so we track an upscaling factor. */
+const UPSCALE_FACTOR = 2.0;
+
+window.onload = function() {
+  cv['onRuntimeInitialized'] = function() {
+    console.log("[DEBUG] OpenCV runtime initialized");
+    // 1) Connect WebSocket
+    initWebSocket();
+
+    // 2) Setup references
+    canvas = document.getElementById("canvasFrame");
+    ctx = canvas.getContext("2d");
+    extractSection = document.getElementById("extractSection");
+    extractProgress = document.getElementById("extractProgress");
+    propagateProgress = document.getElementById("propagateProgress");
+
+    // 3) Event listeners
+    document.getElementById("browseVideoBtn").addEventListener("click", onBrowseVideo);
+    document.getElementById("browseOutputBtn").addEventListener("click", onBrowseOutputDir);
+
+    document.getElementById("loadVideoBtn").addEventListener("click", onLoadVideo);
+    document.getElementById("modeClickBtn").addEventListener("click", () => switchMode("click"));
+    document.getElementById("modeBoxBtn").addEventListener("click", () => switchMode("box"));
+    document.getElementById("undoBtn").addEventListener("click", onUndo);
+    document.getElementById("propagateBtn").addEventListener("click", onPropagate);
+    document.getElementById("toggleAdvancedBtn").addEventListener("click", toggleAdvanced);
+
+    // Modal
+    document.getElementById("closePreviewBtn").addEventListener("click", closeModal);
+    document.getElementById("approveVideoBtn").addEventListener("click", approveVideo);
+    document.getElementById("deleteVideoBtn").addEventListener("click", discardVideo);
+
+    // Canvas
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    console.log("[DEBUG] UI initialization complete");
+  };
+};
+
+/** Initialize WebSocket connection */
+function initWebSocket() {
+  console.log("[DEBUG] Attempting to connect WebSocket...");
+  ws = new WebSocket("ws://localhost:8765");
+  ws.onopen = () => {
+    isConnected = true;
+    console.log("[DEBUG] WebSocket connected");
+    showMessage("Connected to SAM2 server");
+  };
+  ws.onclose = () => {
+    isConnected = false;
+    console.log("[DEBUG] WebSocket disconnected");
+    showMessage("Disconnected from server");
+  };
+  ws.onmessage = handleServerMessage;
+  ws.onerror = (err) => {
+    console.error("[DEBUG] WebSocket error:", err);
+  };
+}
+
+/** Called whenever the server sends a message. */
+async function handleServerMessage(event) {
+  console.log("[DEBUG] WS message received:", event.data);
+  let data;
+  try {
+    data = JSON.parse(event.data);
+  } catch (err) {
+    console.error("[DEBUG] Invalid JSON from server:", event.data, err);
+    return;
+  }
+
+  if (data.error) {
+    console.error("[DEBUG] Server error:", data.error);
+    showMessage("Error: " + data.error);
+    return;
+  }
+
+  let action = data.action || data.type;
+  switch(action) {
+    case "video_ready":
+      console.log("[DEBUG] video_ready received");
+      extractProgress.value = 100;
+      showMessage(data.msg || "Video ready");
+      if (data.first_frame) {
+        let mat = await base64ToMat(data.first_frame);
+        if (lastMat) lastMat.delete();
+        lastMat = mat.clone();
+        showMatOnCanvas(mat);
+        mat.delete();
+      }
+      break;
+
+    case "mask_update":
+      console.log("[DEBUG] mask_update received");
+      if (!data.overlay) return;
+      let mat2 = await base64ToMat(data.overlay);
+      if (lastMat) lastMat.delete();
+      lastMat = mat2.clone();
+      showMatOnCanvas(mat2);
+      mat2.delete();
+      break;
+
+    case "progress":
+      if (typeof data.percent === "number") {
+        propagateProgress.value = data.percent;
+      }
+      showMessage(data.msg || "");
+      break;
+
+    case "propagation_done":
+      console.log("[DEBUG] propagation_done => output path:", data.output_path);
+      showMessage((data.msg || "Propagation done") + " => " + data.output_path);
+      propagateProgress.value = 100;
+
+      // store final path
+      finalVideoPath = data.output_path;
+
+      // Show the preview modal
+      openPreviewModal(finalVideoPath);
+      break;
+
+    default:
+      console.log("[DEBUG] Unknown action from server:", action, data);
+      break;
+  }
+}
+
+/** Let user pick an input video (Electron) */
+async function onBrowseVideo() {
+  try {
+    if (!window.electronAPI || !window.electronAPI.openFileDialog) {
+      console.warn("No electronAPI.openFileDialog() available");
+      return;
+    }
+    const filePath = await window.electronAPI.openFileDialog({
+      filters: [{ name: 'Video Files', extensions: ['mp4','mov','mkv','avi'] }]
+    });
+    if (filePath) {
+      document.getElementById("videoPath").value = filePath;
+      console.log("[DEBUG] Chosen video path:", filePath);
+    }
+  } catch (err) {
+    console.error("[DEBUG] onBrowseVideo error:", err);
+  }
+}
+
+/** Let user pick an output directory (Electron) */
+async function onBrowseOutputDir() {
+  try {
+    if (!window.electronAPI || !window.electronAPI.openDirectoryDialog) {
+      console.warn("No electronAPI.openDirectoryDialog() available");
+      return;
+    }
+    const dirPath = await window.electronAPI.openDirectoryDialog();
+    if (dirPath) {
+      document.getElementById("outputDir").value = dirPath;
+      console.log("[DEBUG] Chosen output directory:", dirPath);
+    }
+  } catch (err) {
+    console.error("[DEBUG] onBrowseOutputDir error:", err);
+  }
+}
+
+/** Load the chosen video into the server for extraction. */
+function onLoadVideo() {
+  if (!isConnected) {
+    alert("Not connected to server.");
+    return;
+  }
+  let videoPath = document.getElementById("videoPath").value.trim();
+  if (!videoPath) {
+    alert("Please select a video first.");
+    return;
+  }
+  console.log("[DEBUG] Sending upload_video request for:", videoPath);
+
+  extractSection.style.display = "block";
+  extractProgress.removeAttribute("value");
+  propagateProgress.value = 0;
+
+  ws.send(JSON.stringify({
+    action: "upload_video",
+    payload: {
+      video_path: videoPath
+    }
+  }));
+}
+
+/** Switch mode between "click" and "box" */
+function switchMode(newMode) {
+  mode = newMode;
+  showMessage("Mode: " + newMode + " (SAM2 prompt)");
+}
+
+/** Undo last click/box */
+function onUndo() {
+  if (!isConnected) return;
+  propagateProgress.value = 0; // reset progress
+  let payload = gatherKnobs();
+  payload.mode = mode; // "click" or "box"
+
+  console.log("[DEBUG] Sending undo request");
+  ws.send(JSON.stringify({ action: "undo", payload }));
+}
+
+/** Start propagation / final segmentation */
+function onPropagate() {
+  if (!isConnected) {
+    alert("Not connected to server.");
+    return;
+  }
+  propagateProgress.value = 0;
+  let payload = gatherKnobs();
+
+  // read user-chosen filename & folder
+  const outName = document.getElementById("outputName").value.trim() || "output_segmented_sam2.mp4";
+  const outDir  = document.getElementById("outputDir").value.trim();
+
+  let outPath;
+  if (!outDir) {
+    // fallback to same folder as input
+    let vidPath = document.getElementById("videoPath").value.trim() || "";
+    let idx = Math.max(vidPath.lastIndexOf("/"), vidPath.lastIndexOf("\\"));
+    if (idx !== -1) {
+      outPath = vidPath.substring(0, idx+1) + outName;
+    } else {
+      outPath = outName;
+    }
+  } else {
+    const sep = (outDir.endsWith("\\") || outDir.endsWith("/")) ? "" : "/";
+    outPath = outDir + sep + outName;
+  }
+  payload.output_path = outPath;
+  payload.fps = 30;
+
+  console.log("[DEBUG] Sending propagate request with path:", outPath);
+  ws.send(JSON.stringify({
+    action: "propagate",
+    payload
+  }));
+}
+
+/** Gather advanced knob values from the UI */
+function gatherKnobs() {
+  let logitThreshold = parseFloat(document.getElementById("logitThreshold").value) || 0.0;
+
+  let applyMorph = document.getElementById("applyMorph").checked;
+  let morphKsizeOpen = parseInt(document.getElementById("morphKsizeOpen").value) || 3;
+  let morphKsizeClose = parseInt(document.getElementById("morphKsizeClose").value) || 3;
+
+  let applyAreaFilter = document.getElementById("applyAreaFilter").checked;
+  let minArea = parseInt(document.getElementById("minArea").value) || 0;
+  let maxAreaRaw = document.getElementById("maxArea").value.trim();
+  let maxArea = maxAreaRaw ? parseInt(maxAreaRaw) : null;
+
+  let applyTempSmooth = document.getElementById("applyTempSmooth").checked;
+  let blendRatio = parseFloat(document.getElementById("blendRatio").value) || 0.5;
+
+  let dilationSize = parseInt(document.getElementById("dilationSize").value) || 5;
+  let dilationIterations = parseInt(document.getElementById("dilationIterations").value) || 1;
+
+  return {
+    logit_threshold: logitThreshold,
+    apply_morph: applyMorph,
+    morph_ksize_open: morphKsizeOpen,
+    morph_ksize_close: morphKsizeClose,
+    apply_area_filter: applyAreaFilter,
+    min_area: minArea,
+    max_area: maxArea,
+    apply_temp_smooth: applyTempSmooth,
+    blend_ratio: blendRatio,
+    dilation_ksize: dilationSize,
+    dilation_iters: dilationIterations
+  };
+}
+
+/** Canvas Mousedown => handle click or box mode. */
+function onMouseDown(e) {
+  if (!isConnected) return;
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+  let xFull = Math.round(xHalf * UPSCALE_FACTOR);
+  let yFull = Math.round(yHalf * UPSCALE_FACTOR);
+
+  if (mode === "click") {
+    let label = (e.button === 2) ? 0 : 1; // right-click => label=0
+    let payload = gatherKnobs();
+    payload.x = xFull;
+    payload.y = yFull;
+    payload.label = label;
+
+    console.log("[DEBUG] Sending add_click");
+    ws.send(JSON.stringify({ action: "add_click", payload }));
+  }
+  else if (mode === "box") {
+    drawingBox = true;
+    boxStart = { xHalf, yHalf };
+  }
+}
+
+/** Canvas Mousemove => ephemeral bounding box if in box mode */
+function onMouseMove(e) {
+  if (mode !== "box" || !drawingBox || !lastMat) return;
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+
+  // ephemeral bounding box overlay
+  let tmp = lastMat.clone();
+  let x1 = Math.min(boxStart.xHalf, xHalf);
+  let y1 = Math.min(boxStart.yHalf, yHalf);
+  let x2 = Math.max(boxStart.xHalf, xHalf);
+  let y2 = Math.max(boxStart.yHalf, yHalf);
+
+  cv.rectangle(
+    tmp,
+    new cv.Point(x1, y1),
+    new cv.Point(x2, y2),
+    new cv.Scalar(0,255,0,255),
+    2
+  );
+  showMatOnCanvas(tmp);
+  tmp.delete();
+}
+
+/** Canvas Mouseup => finalize bounding box. */
+function onMouseUp(e) {
+  if (mode !== "box" || !drawingBox) return;
+  drawingBox = false;
+
+  let rect = canvas.getBoundingClientRect();
+  let xHalf = e.clientX - rect.left;
+  let yHalf = e.clientY - rect.top;
+  let x1Half = Math.min(boxStart.xHalf, xHalf);
+  let y1Half = Math.min(boxStart.yHalf, yHalf);
+  let x2Half = Math.max(boxStart.xHalf, xHalf);
+  let y2Half = Math.max(boxStart.yHalf, yHalf);
+
+  let x1Full = Math.round(x1Half * UPSCALE_FACTOR);
+  let y1Full = Math.round(y1Half * UPSCALE_FACTOR);
+  let x2Full = Math.round(x2Half * UPSCALE_FACTOR);
+  let y2Full = Math.round(y2Half * UPSCALE_FACTOR);
+
+  // revert canvas to the last known overlay
+  if (lastMat) showMatOnCanvas(lastMat);
+
+  let payload = gatherKnobs();
+  payload.x1 = x1Full;
+  payload.y1 = y1Full;
+  payload.x2 = x2Full;
+  payload.y2 = y2Full;
+
+  console.log("[DEBUG] Sending set_box");
+  ws.send(JSON.stringify({
+    action: "set_box",
+    payload
+  }));
+}
+
+/** Toggle advanced knobs panel */
+function toggleAdvanced() {
+  let advDiv = document.getElementById("advancedKnobs");
+  let btn = document.getElementById("toggleAdvancedBtn");
+  if (advDiv.style.display === "none") {
+    advDiv.style.display = "block";
+    btn.textContent = "Hide Advanced Features";
+  } else {
+    advDiv.style.display = "none";
+    btn.textContent = "Show Advanced Features";
+  }
+}
+
+/** Show the preview modal with the final video. */
+function openPreviewModal(videoPath) {
+  console.log("[DEBUG] openPreviewModal =>", videoPath);
+
+  const modal = document.getElementById("previewModal");
+  const videoEl = document.getElementById("previewVideo");
+
+  // In Electron, we can load a local file with file://
+  // If you prefer a safer approach, you can ask electronAPI for a "fileURL".
+  let fileUrl = "file://" + videoPath.replace(/\\/g,"/");
+  console.log("[DEBUG] Setting previewVideo.src to:", fileUrl);
+
+  videoEl.src = fileUrl;
+  videoEl.load();  // ensure re-load
+  videoEl.play().catch(err => {
+    console.warn("Video autoplay might be blocked, user must click play:", err);
+  });
+  modal.style.display = "block";
+}
+
+/** Close the preview modal */
+function closeModal() {
+  const modal = document.getElementById("previewModal");
+  modal.style.display = "none";
+  const videoEl = document.getElementById("previewVideo");
+  videoEl.pause();
+  videoEl.src = "";
+}
+
+/** Approve the final video => keep it, close modal. */
+function approveVideo() {
+  console.log("[DEBUG] User approved video:", finalVideoPath);
+  closeModal();
+  showMessage("Video approved! File kept at: " + finalVideoPath);
+}
+
+/** Discard the final video => delete from disk, reset state, close modal. */
+async function discardVideo() {
+  console.log("[DEBUG] User discarding video:", finalVideoPath);
+  closeModal();
+
+  if (!finalVideoPath) {
+    showMessage("No final video to discard.");
+    return;
+  }
+  // Use Electron function to delete the file
+  if (window.electronAPI && window.electronAPI.deleteFile) {
+    try {
+      await window.electronAPI.deleteFile(finalVideoPath);
+      console.log("[DEBUG] Successfully deleted file:", finalVideoPath);
+      showMessage("Video discarded and file deleted.");
+    } catch (err) {
+      console.error("[DEBUG] Error deleting file:", err);
+      showMessage("Error deleting file: " + err.toString());
+    }
+  } else {
+    console.warn("No electronAPI.deleteFile found. Implement as needed.");
+    showMessage("Discard requested, but no electronAPI to delete file.");
+  }
+
+  // reset the global path
+  finalVideoPath = null;
+  // Optionally reset any UI or state
+  // ...
+}
+
+/** Convert base64 => OpenCV Mat */
+async function base64ToMat(base64Str) {
+  return new Promise((resolve, reject) => {
+    let img = new Image();
+    img.onload = function() {
+      let offCanvas = document.createElement('canvas');
+      offCanvas.width = img.width;
+      offCanvas.height = img.height;
+      offCanvas.getContext('2d').drawImage(img, 0, 0);
+      let mat = cv.imread(offCanvas);
+      resolve(mat);
+    };
+    img.onerror = function(err) {
+      reject(err);
+    };
+    img.src = base64Str;
+  });
+}
+
+/** Show an OpenCV Mat on the canvas. */
+function showMatOnCanvas(mat) {
+  canvas.width = mat.cols;
+  canvas.height = mat.rows;
+  cv.imshow(canvas, mat);
+}
+
+/** Display a message in the #messages area */
+function showMessage(msg) {
+  document.getElementById("messages").textContent = msg;
+}
+
+// Instead of calling window.electronAPI, we do postMessage to the parent
+document.getElementById("browseVideoBtn").addEventListener("click", () => {
+  window.parent.postMessage({ action: 'OPEN_FILE_DIALOG' }, '*');
+});
+document.getElementById("browseOutputBtn")?.addEventListener("click", () => {
+  window.parent.postMessage({ action: 'OPEN_DIRECTORY_DIALOG' }, '*');
+});
+
+/**
+ * Listen for parent's response with a file path or directory path
+ */
+window.addEventListener('message', (event) => {
+  if (!event.data) return;
+  const { action, filePath, dirPath } = event.data;
+
+  if (action === 'OPEN_FILE_DIALOG_RESULT' && filePath) {
+    document.getElementById("videoPath").value = filePath;
+    console.log("[Child] Got file path:", filePath);
+  }
+  else if (action === 'OPEN_DIRECTORY_DIALOG_RESULT' && dirPath) {
+    document.getElementById("outputDir").value = dirPath;
+    console.log("[Child] Got directory path:", dirPath);
+  }
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Concatenation</title>
+  <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 1rem;
+      background: #1e1e1e;
+      color: #ccc;
+      font-family: sans-serif;
+    }
+    .container {
+      position: relative;
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #2a2a2a;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7);
+      overflow: hidden;
+    }
+    #closeBtn {
+      position: absolute;
+      top: 0.75rem; right: 0.75rem;
+      background: transparent;
+      border: none;
+      color: #ccc;
+      font-size: 1.25rem;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #closeBtn:hover { color: #fff; }
+    .content { padding: 1.5rem 2rem 2rem; }
+    h1 { margin-top: 0; text-align: center; font-size: 1.5rem; }
+    .btn-group {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .btn-group button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-group button:hover { background: #0056b3; }
+    #progressContainer {
+      width: 100%;
+      background: #444;
+      margin: 1rem 0;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      display: none;
+    }
+    #progressBar {
+      width: 100%;
+      background: #00ff00;
+      height: 100%;
+      animation: progress-indefinite 2s linear infinite;
+    }
+    @keyframes progress-indefinite {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    #videoList {
+      list-style: none;
+      margin: 0; padding: 0;
+      border: 1px solid #444;
+      border-radius: 8px;
+      max-height: 50vh;
+      overflow-y: auto;
+    }
+    #videoList li {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #444;
+    }
+    #videoList li:nth-child(odd)  { background: #333; }
+    #videoList li:nth-child(even) { background: #2b2b2b; }
+    video.thumb {
+      width: 120px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .meta {
+      margin-left: 1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .meta .name { font-weight: bold; margin-bottom: 0.25rem; }
+    .meta .details { font-size: 0.85rem; color: #aaa; }
+    .remove-btn {
+      background: transparent;
+      border: none;
+      color: #f55;
+      cursor: pointer;
+      font-size: 1.2rem;
+      margin-left: 1rem;
+      flex-shrink: 0;
+    }
+    .remove-btn:hover { color: #faa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button id="closeBtn" title="Close"><i class="fas fa-times"></i></button>
+    <div class="content">
+      <h1>Concatenate Videos</h1>
+      <div class="btn-group">
+        <button id="selectBtn">Add Videos</button>
+        <button id="sortBtn">Sort by Name</button>
+        <button id="exportBtn">Export</button>
+        <button id="clearBtn">Clear All</button>
+      </div>
+      <div id="progressContainer">
+        <div id="progressBar"></div>
+      </div>
+      <ul id="videoList"></ul>
+    </div>
+  </div>
+
+<script>
+  console.log('[CHILD2] script loaded');
+
+  let videos = [];
+  let ws;
+  let sendQueue = [];
+
+  function saveVideos() {
+    sessionStorage.setItem('videoList', JSON.stringify(videos));
+  }
+  function loadVideos() {
+    const raw = sessionStorage.getItem('videoList');
+    if (raw) {
+      try { videos = JSON.parse(raw); } catch {}
+    }
+  }
+
+  // ─── WebSocket w/ auto-reconnect & queue ─────────────────────────
+  function initWebSocket() {
+    console.log('[CHILD2] initWebSocket()');
+    ws = new WebSocket('ws://localhost:8765');
+
+    // Fired when connection opens
+    ws.addEventListener('open', () => {
+      console.log('[CHILD2] WebSocket OPEN');
+      Swal.fire({
+
+        icon: 'success',
+        title: 'WebSocket Connected',
+        text: 'Ready to concatenate videos',
+        timer: 1500,
+        showConfirmButton: false,
+        background: '#2a2a2a',
+        color: '#fff'
+      });
+
+      // flush any queued messages
+      sendQueue.forEach(msg => ws.send(msg));
+      sendQueue = [];
+
+      // notify parent as well (for its toasts)
+      window.parent.postMessage({
+        action: 'WS_RECONNECTED',
+        text: 'WebSocket re-established!'
+      }, '*');
+    });
+
+    // Fired on errors (e.g. server not up)
+    ws.addEventListener('error', err => {
+      console.error('[CHILD2] WebSocket ERROR', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'WebSocket Error',
+        text: 'Could not connect to server',
+        timer: 2000,
+        showConfirmButton: false,
+        background: '#2a2a2a',
+        color: '#fff'
+      });
+    });
+
+    // Fired on close: retry after 3s
+    ws.addEventListener('close', ev => {
+      console.warn('[CHILD2] WebSocket CLOSED', ev);
+      Swal.fire({
+        icon: 'warning',
+        title: 'Connection Lost',
+        text: 'Reconnecting in 3 seconds…',
+        timer: 2000,
+        showConfirmButton: false,
+        background: '#2f2f2f',
+        color: '#ffffff',
+      });
+      setTimeout(initWebSocket, 3000);
+    });
+
+    ws.addEventListener('message', handleMessage);
+  }
+
+  // helper to send or queue
+  function safeSend(obj) {
+    const msg = JSON.stringify(obj);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    } else {
+      console.log('[CHILD2] Queuing send until open:', obj);
+      sendQueue.push(msg);
+    }
+  }
+
+  // ─── Message handler ────────────────────────────────
+  function handleMessage(evt) {
+    let data;
+    try { data = JSON.parse(evt.data); } catch { return; }
+
+    if (data.type === 'concat_done') {
+      hideProgressBar();
+      window.parent.postMessage({
+        action: 'CONCAT_COMPLETE',
+        output: data.output_path
+      }, '*');
+    }
+    if (data.type === 'concat_error') {
+      hideProgressBar();
+      Swal.fire({icon:'error',title:'Error',text:data.error,background:'#2f2f2f',color:'#ffffff'});
+    }
+  }
+
+  // ─── UI controls ────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('closeBtn').onclick   = () => window.parent.postMessage({ action: 'CLOSE_MODAL' }, '*');
+    document.getElementById('selectBtn').onclick  = () => window.parent.postMessage({ action: 'OPEN_FILES_DIALOG' }, '*');
+    document.getElementById('sortBtn').onclick    = () => { videos.sort((a,b)=>a.name.localeCompare(b.name)); renderList(); };
+    document.getElementById('exportBtn').onclick  = onExport;
+    document.getElementById('clearBtn').onclick   = () => { videos=[]; renderList(); };
+
+    loadVideos();
+    renderList();
+    initWebSocket();
+  });
+
+  async function onExport() {
+    if (!videos.length) {
+      return Swal.fire({
+              icon:  'info',
+              title: 'No videos',
+              text:  'Add some first',
+              background: '#2f2f2f',
+              color:      '#ffffff'
+            });
+    }
+    window.parent.postMessage({ action: 'OPEN_DIRECTORY_DIALOG' }, '*');
+  }
+
+  // ─── Handle parent messages ─────────────────────────────
+  window.addEventListener('message', async e => {
+    const msg = e.data;
+    if (!msg) return;
+
+    // initial file list
+    if (msg.type === 'VIDEO_FILES') {
+      for (const f of msg.files) {
+        await addVideoItem(f.path, f.size);
+      }
+      return;
+    }
+
+    // directory picked → ask for filename → send concat
+    if (msg.action === 'OPEN_DIRECTORY_DIALOG_RESULT') {
+      const dir = msg.dirPath;
+      if (!dir) {
+        return Swal.fire({
+                icon:       'info',
+                title:      'No folder selected',
+                text:       '',
+                background: '#2f2f2f',
+                color:      '#ffffff'
+              });
+      }
+      const { value: filename } = await Swal.fire({
+        background: '#2f2f2f',
+        color: '#ffffff',
+        title: 'Export filename',
+        input: 'text',
+        inputValue: 'combined.mp4',
+        showCancelButton: true
+      });
+      if (!filename) return;
+
+      const outDir = dir.replace(/\\/g,'/');
+      const outPath = `${outDir}${outDir.endsWith('/') ? '' : '/'}${filename}`;
+      showProgressBar();
+
+      safeSend({
+        action: 'concatenateVideos',
+        payload: { files: videos.map(v=>v.path), output: outPath }
+      });
+    }
+  });
+
+  // ─── Helpers: progress, list, add, render ───────────────────
+  function showProgressBar()   { document.getElementById('progressContainer').style.display = 'block'; }
+  function hideProgressBar()   { document.getElementById('progressContainer').style.display = 'none'; }
+  async function addVideoItem(path, sizeBytes) {
+    const name = path.split(/[/\\]/).pop();
+    const vid = document.createElement('video');
+    vid.src = encodeURI(`file://${path.replace(/\\/g,'/')}`);
+    await new Promise(r => { vid.onloadedmetadata=r; vid.onerror=r; });
+    videos.push({ path, name, sizeBytes, duration: vid.duration||0 });
+    renderList();
+  }
+  function renderList() {
+    const ul = document.getElementById('videoList');
+    ul.innerHTML = '';
+    videos.forEach((v,i)=>{
+      const li = document.createElement('li');
+      const vid = document.createElement('video');
+      vid.className='thumb';
+      vid.src=encodeURI(`file://${v.path.replace(/\\/g,'/')}`);
+      vid.controls=true;
+      const meta = document.createElement('div');
+      meta.className='meta';
+      meta.innerHTML = `<div class="name">${v.name}</div><div class="details">${formatBytes(v.sizeBytes)} • ${formatDuration(v.duration)}</div>`;
+      const btn = document.createElement('button');
+      btn.className='remove-btn';
+      btn.innerHTML='<i class="fas fa-trash"></i>';
+      btn.onclick=()=>{ videos.splice(i,1); renderList(); };
+      li.append(vid, meta, btn);
+      ul.appendChild(li);
+    });
+    saveVideos();
+  }
+  function formatBytes(b) {
+    if (b<1024) return b+' B';
+    const k=1024, sizes=['B','KB','MB','GB']; let i=Math.floor(Math.log(b)/Math.log(k));
+    return (b/Math.pow(k,i)).toFixed(1)+' '+sizes[i];
+  }
+  function formatDuration(s) {
+    const m=Math.floor(s/60), r=Math.floor(s%60);
+    return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+  }
+</script>
+
+</body>
+</html>

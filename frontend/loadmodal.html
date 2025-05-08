@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Parent Page</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: #fff;
+      margin: 5vh auto;
+      padding: 20px;
+      width: 90%;
+      max-width: 1000px;
+      height: 90vh;
+      overflow-y: auto;
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .close-modal {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      font-size: 24px;
+      cursor: pointer;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <h1>Parent Page</h1>
+  <button id="openChildModal">Open Video Concatenator</button>
+
+  <div id="childModal" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <div id="childContainer"><!-- child2.html will load here --></div>
+    </div>
+  </div>
+
+  <script>
+    // Modal open/close
+    document.getElementById('openChildModal').onclick = async () => {
+      const modal = document.getElementById('childModal');
+      const container = document.getElementById('childContainer');
+
+      try {
+        const response = await fetch('child2.html');
+        const html = await response.text();
+        container.innerHTML = html;
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+      } catch (err) {
+        alert('Failed to load child2.html');
+        console.error(err);
+      }
+    };
+
+    document.querySelector('.close-modal').onclick = () => {
+      document.getElementById('childModal').style.display = 'none';
+      document.getElementById('childContainer').innerHTML = '';
+      document.body.style.overflow = 'auto';
+    };
+
+    document.getElementById('childModal').onclick = e => {
+      if (e.target === e.currentTarget) {
+        document.querySelector('.close-modal').click();
+      }
+    };
+
+    // Message handler
+    window.addEventListener('message', async (e) => {
+      const msg = e.data;
+      console.log('[PARENT] message from child:', msg);
+
+      // FILE DIALOG
+      if (msg.action === 'OPEN_FILES_DIALOG') {
+        let paths = [];
+        if (window.electronAPI?.openFilesDialog) {
+          paths = await window.electronAPI.openFilesDialog({
+            filters: msg.filters,
+            properties: ['openFile', 'multiSelections']
+          });
+        } else {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'video/*';
+          input.multiple = true;
+          input.onchange = () => {
+            paths = Array.from(input.files).map(f => f.path || URL.createObjectURL(f));
+            sendVideoFiles(paths);
+          };
+          return input.click();
+        }
+        sendVideoFiles(paths);
+      }
+
+      // DIRECTORY DIALOG
+      if (msg.action === 'OPEN_DIRECTORY_DIALOG') {
+        let dir = null;
+        if (window.electronAPI?.openDirectoryDialog) {
+          dir = await window.electronAPI.openDirectoryDialog({
+            properties: ['openDirectory', 'createDirectory']
+          });
+        }
+        e.source.postMessage({
+          type: 'DIRECTORY_SELECTED',
+          path: dir || ''
+        }, e.origin);
+      }
+
+      // CONCAT COMPLETE
+      if (msg.action === 'CONCAT_COMPLETE') {
+        alert(`Video concatenation complete!\nOutput: ${msg.output}`);
+      }
+
+      async function sendVideoFiles(paths) {
+        const files = await Promise.all(paths.map(async p => {
+          let size = 0;
+          if (window.electronAPI?.getFileStats) {
+            try {
+              const stat = await window.electronAPI.getFileStats(p);
+              size = stat.size;
+            } catch (err) {
+              console.warn('[PARENT] getFileStats failed for', p, err);
+            }
+          }
+          return { path: p, size };
+        }));
+        e.source.postMessage({
+          type: 'VIDEO_FILES',
+          files
+        }, e.origin);
+      }
+    });
+  </script>
+</body>
+</html>

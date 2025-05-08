@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Starting Rink Reels...</title>
+  <style>
+    body {
+      margin: 0;
+      background: #1e1e1e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #fff;
+      font-family: sans-serif;
+      flex-direction: column;
+    }
+    .spinner {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      border: 8px solid rgba(255,255,255,0.2);
+      border-top: 8px solid #4caf50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+    .spinner img {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 32px;
+      height: 32px;
+      transform: translate(-50%, -50%);
+      border-radius: 4px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status {
+      margin-top: 1rem;
+      color: #aaa;
+    }
+    .error {
+      color: #ff4444;
+      margin-top: 1rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="spinner">
+    <img src="1024.png" alt="logo">
+  </div>
+  <div>Loading RinkReels...</div>
+  <div class="status" id="status">Starting server...</div>
+  <div class="error" id="error"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    let attempts = 0;
+    const maxAttempts = 200; // 30 attempts * 1 second = 30 seconds timeout
+
+    async function checkServer() {
+      try {
+        statusEl.textContent = 'Connecting to server...';
+        const isReady = await window.electronAPI.checkServerReady();
+
+        if (isReady) {
+          try {
+            const ws = new WebSocket('ws://localhost:8765');
+            ws.onopen = () => {
+              statusEl.textContent = 'Connected! Launching application...';
+              window.location.href = 'index.html';
+            };
+            ws.onerror = () => retry('Failed to connect to WebSocket server');
+          } catch (wsError) {
+            retry('WebSocket connection failed: ' + wsError.message);
+          }
+        } else {
+          retry('Server not ready');
+        }
+      } catch (err) {
+        showError('Error checking server status: ' + err.message);
+      }
+    }
+
+    function retry(msg) {
+      attempts++;
+      if (attempts >= maxAttempts) {
+        showError(msg);
+      } else {
+        setTimeout(checkServer, 1000);
+      }
+    }
+
+    function showError(message) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      document.querySelector('.spinner').style.borderTopColor = '#ff4444';
+    }
+
+    setTimeout(checkServer, 1000);
+  </script>
+</body>
+</html>
